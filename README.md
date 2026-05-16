@@ -6,6 +6,9 @@ Upload any document and ask questions — the system retrieves relevant context 
 
 ---
 
+## 🌐 Live Demo
+👉 [Try it live here](https://rag-documentassistant.streamlit.app/)
+
 ## 📸 Screenshots
 
 ### Chat Interface
