@@ -6,16 +6,19 @@ Upload any document and ask questions — the system retrieves relevant context 
 
 ---
 
+## Visual Architecture
+![Visual Architecture](assets/rag.png)
+
 ## 🌐 Live Demo
 👉 [Try it live here](https://rag-documentassistant.streamlit.app/)
 
 ## 📸 Screenshots
 
 ### Chat Interface
-![Demo 1](screenshots/demo1.png)
+![Demo 1](assets/demo1.png)
 
 ### Document Q&A
-![Demo 2](screenshots/demo2.png)
+![Demo 2](assets/demo2.png)
 
 ---
 
@@ -57,9 +60,10 @@ RAGProject/
 ├── DocumentLoaders/
 │   └── deeplearning.pdf
 │
-├── screenshots/
+├── assets/
 │   ├── demo1.png
 │   └── demo2.png
+│   └── rag.png
 │
 ├── .env
 ├── .env.example
