@@ -9,6 +9,7 @@ Upload any document and ask questions — the system retrieves relevant context 
 ## Visual Architecture
 ![Visual Architecture](assets/rag.png)
 
+---
 ## 🌐 Live Demo
 👉 [Try it live here](https://rag-documentassistant.streamlit.app/)
 
