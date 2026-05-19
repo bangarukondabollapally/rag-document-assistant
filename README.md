@@ -179,7 +179,6 @@ Streamlit UI → displays response
 ## 📦 requirements.txt
 
 ```text
-gradio
 streamlit
 langchain
 langchain-groq
