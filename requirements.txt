@@ -5,8 +5,5 @@ langchain-huggingface
 langchain-groq
 huggingface-hub
 sentence-transformers
-chromadb==0.4.24
-numpy==1.26.4
-protobuf==3.20.3
+faiss-cpu
 pypdf
-pysqlite3-binary
