@@ -1,11 +1,10 @@
 streamlit
 langchain
 langchain-community
-langchain-huggingface
 langchain-groq
-
-numpy==1.26.4
-chromadb==0.4.24
-
+huggingface-hub
 sentence-transformers
-python-dotenv
+chromadb==0.4.24
+numpy==1.26.4
+protobuf==3.20.3
+pypdf
