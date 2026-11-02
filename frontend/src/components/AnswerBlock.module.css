@@ -1,0 +1,127 @@
+.answer {
+  margin-top: 20px;
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.62;
+  overflow-wrap: anywhere;
+}
+
+.answer strong {
+  font-weight: 600;
+}
+
+.answer > :first-child {
+  margin-top: 0;
+}
+
+.answer > :last-child {
+  margin-bottom: 0;
+}
+
+.answer p,
+.answer ul,
+.answer ol,
+.answer blockquote {
+  margin: 0 0 0.85em;
+}
+
+.answer ul,
+.answer ol {
+  padding-left: 1.4em;
+}
+
+.answer li {
+  margin-bottom: 0.3em;
+}
+
+.answer li > p {
+  margin-bottom: 0.3em;
+}
+
+.answer h1,
+.answer h2,
+.answer h3,
+.answer h4 {
+  margin: 1.3em 0 0.4em;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.answer h1,
+.answer h2 {
+  font-size: 16px;
+}
+
+.answer blockquote {
+  padding-left: 14px;
+  border-left: 2px solid var(--line-strong);
+  color: var(--ink-2);
+}
+
+.answer a {
+  color: var(--rubric);
+}
+
+.answer code {
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  background: var(--sidebar);
+  font-size: 0.82em;
+}
+
+.answer pre {
+  margin: 0 0 1em;
+  padding: 12px 14px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  line-height: 1.5;
+}
+
+.answer pre code {
+  padding: 0;
+  background: transparent;
+  font-size: 13px;
+  overflow-wrap: normal;
+}
+
+/* Wide equations scroll inside the answer rather than widening the page. */
+.answer :global(.katex-display) {
+  margin: 0.2em 0 1em;
+  padding: 4px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.answer :global(.katex) {
+  font-size: 1em;
+  overflow-wrap: normal;
+}
+
+.tableWrap {
+  margin: 0 0 1em;
+  overflow-x: auto;
+}
+
+.answer table {
+  border-collapse: collapse;
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.answer th,
+.answer td {
+  padding: 6px 12px 6px 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: normal;
+}
+
+.answer th {
+  font-weight: 600;
+}

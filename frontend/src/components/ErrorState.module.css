@@ -1,0 +1,33 @@
+.error {
+  padding: 12px 14px;
+  border: 1px solid var(--error);
+  border-radius: var(--radius);
+  background: var(--error-soft);
+}
+
+.title {
+  margin: 0;
+  color: var(--error);
+  font-weight: 600;
+}
+
+.message {
+  margin: 2px 0 0;
+}
+
+.command {
+  display: block;
+  margin-top: 8px;
+  overflow-x: auto;
+  font-size: 13px;
+  white-space: pre;
+}
+
+.retry {
+  min-height: 36px;
+  margin-top: 10px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+}

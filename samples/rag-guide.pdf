@@ -1,0 +1,114 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R] /Count 4 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 673 >>
+stream
+BT /F1 10 Tf 13 TL 50 740 Td
+(How Retrieval-Augmented Generation Works) Tj T*
+() Tj T*
+(Retrieval-augmented generation, or RAG, answers questions using a set of documents.) Tj T*
+(A language model on its own answers from what it learned during training, so it can) Tj T*
+(be out of date and knows nothing about your private files. RAG adds a search step:) Tj T*
+(it finds passages related to the question and gives them to the model as context.) Tj T*
+(The model is then asked to answer from those passages.) Tj T*
+() Tj T*
+(The approach has two phases. Indexing prepares the documents once, ahead of time.) Tj T*
+(Querying runs each time someone asks a question.) Tj T*
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 730 >>
+stream
+BT /F1 10 Tf 13 TL 50 740 Td
+(Indexing: Preparing Documents) Tj T*
+() Tj T*
+(Indexing begins by extracting the text of each document. Long text is then split into) Tj T*
+(smaller chunks, because a search works best when each result covers one idea.) Tj T*
+(Overlap between neighbouring chunks keeps a sentence that crosses a boundary whole.) Tj T*
+() Tj T*
+(An embedding model converts each chunk into a vector, a list of numbers that captures) Tj T*
+(its meaning. Chunks with similar meanings get vectors that are close together. The) Tj T*
+(vectors are stored in a vector index, which can find the nearest ones quickly. Saving) Tj T*
+(the index means the slow embedding work doesn't have to be repeated at every start.) Tj T*
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 702 >>
+stream
+BT /F1 10 Tf 13 TL 50 740 Td
+(Querying: Finding Relevant Passages) Tj T*
+() Tj T*
+(To answer a question, the system embeds the question with the same embedding model and) Tj T*
+(searches the index for the nearest chunks. Plain similarity search can return several) Tj T*
+(chunks that say nearly the same thing.) Tj T*
+() Tj T*
+(Maximal marginal relevance, or MMR, reduces that repetition. It first fetches a larger) Tj T*
+(set of candidates, then picks results one at a time, balancing closeness to the question) Tj T*
+(against similarity to the results it has already picked. A lambda value of 1 considers) Tj T*
+(only closeness to the question, and lower values give more weight to variety.) Tj T*
+ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 11 0 R >>
+endobj
+11 0 obj
+<< /Length 707 >>
+stream
+BT /F1 10 Tf 13 TL 50 740 Td
+(Generating and Checking the Answer) Tj T*
+() Tj T*
+(The selected passages and the question are combined into a prompt, which instructs the) Tj T*
+(model to answer from the passages and to say so when they don't contain the answer.) Tj T*
+(Grounding like this reduces invented answers but doesn't eliminate them.) Tj T*
+() Tj T*
+(Showing the retrieved passages beside the answer lets a reader check the answer against) Tj T*
+(its sources. A passage's distance score shows how similar it is to the question. It) Tj T*
+(doesn't show that the passage is correct or that the answer used it faithfully. Reading) Tj T*
+(the source remains the reliable way to verify a claim.) Tj T*
+ET
+endstream
+endobj
+12 0 obj
+<< /Title (How Retrieval-Augmented Generation Works) >>
+endobj
+xref
+0 13
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000140 00000 n 
+0000000237 00000 n 
+0000000363 00000 n 
+0000001087 00000 n 
+0000001213 00000 n 
+0000001994 00000 n 
+0000002120 00000 n 
+0000002873 00000 n 
+0000003001 00000 n 
+0000003760 00000 n 
+trailer
+<< /Size 13 /Root 1 0 R /Info 12 0 R >>
+startxref
+3832
+%%EOF

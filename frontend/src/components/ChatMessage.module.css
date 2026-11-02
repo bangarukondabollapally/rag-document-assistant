@@ -1,0 +1,110 @@
+.turn {
+  padding: 28px 0 32px;
+  border-bottom: 1px solid var(--line);
+  scroll-margin-top: 0;
+}
+
+.turn:last-of-type {
+  border-bottom: 0;
+}
+
+.question {
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.sources {
+  margin-top: 14px;
+}
+
+.sourcesLabel {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 9px 0 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.chip:hover {
+  border-color: var(--rubric);
+}
+
+.chipRank {
+  color: var(--rubric);
+  font-weight: 400;
+}
+
+.notFound {
+  margin-top: 20px;
+  padding-left: 14px;
+  border-left: 2px solid var(--rubric);
+  color: var(--ink-2);
+}
+
+.notFound p {
+  margin: 0;
+}
+
+.notFound .notFoundTitle {
+  margin-bottom: 2px;
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 18px;
+}
+
+.plainAnswer {
+  margin: 20px 0 0;
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.62;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.stopped {
+  margin: 12px 0 0;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.error {
+  margin-top: 16px;
+}
+
+.partial {
+  margin: 0 0 8px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+@media (max-width: 767px) {
+  .chip {
+    min-height: 36px;
+  }
+}

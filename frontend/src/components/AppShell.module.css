@@ -1,0 +1,133 @@
+.shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.sidebar {
+  min-height: 0;
+  background: var(--sidebar);
+  border-right: 1px solid var(--line);
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.sources {
+  min-height: 0;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 6px 12px 6px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.context {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+}
+
+.contextLabel {
+  color: var(--ink-3);
+}
+
+.contextName {
+  font-weight: 500;
+}
+
+.actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+}
+
+.textButton,
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.iconButton {
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+  margin-left: -8px;
+}
+
+.textButton:hover,
+.iconButton:hover {
+  background: var(--sidebar);
+  color: var(--ink);
+}
+
+/* Positioned, so visually hidden content (status text, KaTeX's MathML) stays inside
+   this scroller instead of extending the page. */
+.scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.drawer {
+  position: relative;
+  height: 100%;
+}
+
+.drawerClose {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-2);
+}
+
+@media (min-width: 768px) {
+  .shell {
+    grid-template-columns: 264px minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 1180px) {
+  .shell {
+    grid-template-columns: 264px minmax(0, 1fr) 400px;
+  }
+}
+
+@media (max-width: 767px) {
+  .header {
+    padding-left: 12px;
+  }
+}

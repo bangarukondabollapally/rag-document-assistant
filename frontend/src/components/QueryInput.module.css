@@ -1,0 +1,92 @@
+.form {
+  padding: 10px 20px max(12px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.inner {
+  max-width: var(--measure);
+  margin: 0 auto;
+}
+
+.box {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.box:focus-within {
+  border-color: var(--rubric);
+  box-shadow: 0 0 0 1px var(--rubric);
+}
+
+.textarea {
+  flex: 1;
+  min-width: 0;
+  max-height: 180px;
+  padding: 7px 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 15px;
+  line-height: 22px;
+  resize: none;
+}
+
+.textarea::placeholder {
+  color: var(--ink-3);
+  opacity: 1;
+}
+
+.textarea:disabled {
+  cursor: not-allowed;
+}
+
+.button {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.send:not(:disabled) {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.send:disabled {
+  color: var(--ink-3);
+  opacity: 0.6;
+}
+
+.hint {
+  margin: 6px 0 0;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+/* 16px stops iOS Safari zooming the page when the field takes focus. */
+@media (max-width: 767px) {
+  .form {
+    padding-inline: 12px;
+  }
+
+  .textarea {
+    font-size: 16px;
+  }
+
+  .button {
+    width: 40px;
+    height: 40px;
+  }
+}

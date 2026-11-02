@@ -1,0 +1,95 @@
+.empty {
+  max-width: calc(var(--measure) + 40px);
+  margin: 0 auto;
+  padding: clamp(32px, 9vh, 88px) 20px 40px;
+}
+
+.heading {
+  margin: 0 0 16px;
+  font-family: var(--serif);
+  font-size: clamp(24px, 3vw, 30px);
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.flow {
+  max-width: 38rem;
+  margin: 0;
+  padding: 0 0 0 20px;
+  color: var(--ink-2);
+  font-size: 15px;
+}
+
+.flow li {
+  margin-bottom: 4px;
+}
+
+.flow li::marker {
+  color: var(--rubric);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.waiting {
+  margin: 20px 0 0;
+  color: var(--rubric);
+  font-weight: 500;
+}
+
+.suggestions {
+  margin-top: 36px;
+}
+
+.suggestionsLabel {
+  margin: 0 0 6px;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.suggestions ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.suggestions li {
+  border-bottom: 1px solid var(--line);
+}
+
+.suggestion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 16px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 4px;
+  border: 0;
+  background: transparent;
+  font-size: 15px;
+  text-align: left;
+}
+
+.suggestion:hover:not(:disabled) {
+  background: var(--sidebar);
+}
+
+.suggestion:disabled {
+  color: var(--ink-3);
+}
+
+.suggestionNote {
+  color: var(--ink-3);
+  font-size: 12.5px;
+}
+
+@media (max-width: 767px) {
+  .empty {
+    padding-inline: 16px;
+  }
+}

@@ -8,3 +8,6 @@ sentence-transformers
 faiss-cpu
 pypdf
 langchain-text-splitters
+python-dotenv
+fastapi
+uvicorn

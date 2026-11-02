@@ -1,66 +1,39 @@
 import streamlit as st
-from dotenv import load_dotenv
-from langchain_community.vectorstores import FAISS
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_groq import ChatGroq
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_huggingface import HuggingFaceEmbeddings
+
+from rag_core import DocumentError, IndexNotAvailable, open_saved_pipeline, rebuild_index
 
 
+# Failures aren't cached, so this tries again on the next run.
 @st.cache_resource
 def setup_rag():
-    loader = PyPDFLoader("DocumentLoaders/deeplearning.pdf")
-    documents = loader.load()
-    documents = documents[20:-10]  # skip cover/index pages like before
+    return open_saved_pipeline()
 
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=100
-    )
-    chunks = splitter.split_documents(documents)
-    chunks = [c for c in chunks if c.page_content.strip()]
 
-    embedding_model = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-mpnet-base-v2"
-    )
-
-    vectorstore = FAISS.from_documents(chunks, embedding_model)
-
-    retriever = vectorstore.as_retriever(
-        search_type="mmr",
-        search_kwargs={
-            "k": 6,
-            "fetch_k": 20,
-            "lambda_mult": 0.7
-        }
-    )
-
-    llm = ChatGroq(model="llama-3.3-70b-versatile")
-
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are an AI assistant which answers the question. Answer the question based on the context given. If any question is out of the context reply with couldn't find the answer"),
-        ("human", "Context: {context}\nQuestion: {question}")
-    ])
-
-    return retriever, llm, prompt
+def index_is_ready() -> bool:
+    try:
+        setup_rag()
+        return True
+    except DocumentError as exc:
+        st.error(str(exc))
+    except IndexNotAvailable as exc:
+        st.warning(f"No index available. {exc}")
+        if st.button("Build index"):
+            with st.spinner("Building the index. This can take a few minutes on a CPU."):
+                rebuild_index()
+            st.rerun()
+    return False
 
 
 def get_answer(query: str) -> str:
-    retriever, llm, prompt = setup_rag()
-    docs = retriever.invoke(query)
-    context = "".join([doc.page_content for doc in docs])
-    final_prompt = prompt.invoke({
-        "context": context,
-        "question": query
-    })
-    response = llm.invoke(final_prompt)
-    return response.content
+    return setup_rag().answer(query)
 
 
 def render_chat_ui():
     st.title("📑 RAG Document Assistant")
     st.caption("Ask questions about your document!")
+
+    if not index_is_ready():
+        return
 
     if "messages" not in st.session_state:
         st.session_state.messages = []

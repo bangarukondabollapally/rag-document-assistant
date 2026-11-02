@@ -1,0 +1,11 @@
+.conversation {
+  max-width: calc(var(--measure) + 40px);
+  margin: 0 auto;
+  padding: 0 20px 48px;
+}
+
+@media (max-width: 767px) {
+  .conversation {
+    padding-inline: 16px;
+  }
+}

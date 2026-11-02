@@ -1,2 +1,19 @@
 .env
 __pycache__/
+.venv/
+
+# Saved document indexes. They contain the text of the indexed documents.
+.rag_index/
+*.faiss
+
+# Old Chroma data, which also contains document text.
+chroma-db/
+chroma_db/
+*.sqlite3
+*.pickle
+
+# Documents you may not have the right to redistribute.
+# Only documents in samples/, which must be safe to share, can be committed.
+DocumentLoaders/
+*.pdf
+!samples/*.pdf

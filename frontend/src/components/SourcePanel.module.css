@@ -1,0 +1,135 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 6px 12px 6px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-right: -6px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-2);
+}
+
+.close:hover {
+  background: var(--sidebar);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  padding: 14px 18px 32px;
+  overflow-y: auto;
+}
+
+.placeholder {
+  margin: 0;
+  color: var(--ink-3);
+}
+
+.forQuestion {
+  margin: 0 0 10px;
+  color: var(--ink-2);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.details {
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+
+.details summary {
+  min-height: 28px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.detailsBody {
+  padding: 4px 0 0;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.detailsBody p {
+  margin: 0 0 7px;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.card {
+  padding: 12px 0 14px;
+  border-bottom: 1px solid var(--line);
+  scroll-margin: 8px;
+}
+
+.card:focus {
+  outline: 0;
+}
+
+.focused {
+  margin-inline: -18px;
+  padding-inline: 16px 18px;
+  border-left: 2px solid var(--rubric);
+  background: var(--rubric-soft);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.rank {
+  color: var(--rubric);
+}
+
+.origin {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.distance {
+  color: var(--ink-3);
+}
+
+.excerpt {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 14.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
