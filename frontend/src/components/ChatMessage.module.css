@@ -55,6 +55,14 @@
   border-color: var(--rubric);
 }
 
+.chipDocument {
+  max-width: 11em;
+  overflow: hidden;
+  color: var(--ink-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .chipRank {
   color: var(--rubric);
   font-weight: 400;

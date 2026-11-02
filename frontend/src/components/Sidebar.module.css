@@ -26,6 +26,18 @@
   min-width: 0;
 }
 
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sectionHeader .label {
+  margin: 0;
+}
+
 .documents {
   margin: 0;
   padding: 0;
@@ -33,10 +45,36 @@
 }
 
 .document {
-  padding-bottom: 12px;
+  padding: 10px 0 12px;
+  border-top: 1px solid var(--line);
+}
+
+.documentSelect {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.documentSelect input {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  margin: 3px 0 0;
+  accent-color: var(--rubric);
+  cursor: pointer;
+}
+
+.documentSelect input:disabled {
+  cursor: not-allowed;
+}
+
+.documentBody {
+  padding-left: 23px;
 }
 
 .documentName {
+  min-width: 0;
   font-weight: 500;
   overflow-wrap: anywhere;
 }
@@ -48,34 +86,76 @@
 
 .status {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
-  margin-top: 8px;
-  font-size: 13px;
+  margin-top: 4px;
+  font-size: 12.5px;
   font-weight: 500;
 }
 
 .dot {
+  flex-shrink: 0;
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: currentColor;
+  transform: translateY(-1px);
 }
 
 .ready {
   color: var(--ok);
 }
 
-.loading {
+.processing {
   color: var(--rubric);
 }
 
-.loading .dot {
+.processing .dot {
   animation: pulse 1.6s ease-in-out infinite;
 }
 
-.not_indexed {
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 12px;
+  margin-top: 4px;
+}
+
+.action {
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 2px;
+}
+
+.action:hover {
+  color: var(--ink);
+}
+
+.confirm {
+  color: var(--error);
+}
+
+.confirmText {
+  width: 100%;
   color: var(--ink-2);
+  font-size: 12.5px;
+}
+
+.emptyDocuments {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.emptyTitle {
+  margin: 0;
+  font-weight: 500;
 }
 
 .failed {
@@ -102,9 +182,20 @@
 }
 
 .errorText {
-  margin: 8px 0 0;
+  margin: 6px 0 8px;
   color: var(--error);
   font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px) {
+  .action {
+    min-height: 36px;
+  }
+
+  .sidebar {
+    padding-right: 44px;
+  }
 }
 
 .pipeline {

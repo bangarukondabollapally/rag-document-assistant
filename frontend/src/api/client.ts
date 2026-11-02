@@ -1,4 +1,4 @@
-import type { ErrorCode, QueryError, QueryEvent, Workspace } from "./types";
+import type { DocumentSummary, ErrorCode, QueryError, QueryEvent, Workspace } from "./types";
 
 export class ApiError extends Error {
   readonly code: ErrorCode;
@@ -44,23 +44,51 @@ export async function* readNdjson<T>(stream: ReadableStream<Uint8Array>): AsyncG
   }
 }
 
-export async function* streamQuery(question: string, signal: AbortSignal): AsyncGenerator<QueryEvent> {
+/** Turns the API's {code, message} error body into an ApiError, whatever its shape. */
+async function toApiError(response: Response): Promise<ApiError> {
+  try {
+    const body = (await response.json()) as { code?: ErrorCode; message?: string };
+    if (body.code && body.message) return new ApiError(body.code, body.message);
+  } catch {
+    // Not a JSON error body: fall through to the generic message.
+  }
+  return new ApiError("network", `The API returned ${response.status}.`);
+}
+
+export async function* streamQuery(
+  question: string,
+  selectedDocumentIds: string[],
+  signal: AbortSignal,
+): AsyncGenerator<QueryEvent> {
   const response = await fetch("/api/query", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({ question, selected_document_ids: selectedDocumentIds }),
     signal,
   });
 
-  if (!response.ok || !response.body) {
-    if (response.status === 503) {
-      throw new ApiError("not_ready", "The document index isn't ready.");
-    }
-    if (response.status === 422) {
-      throw new ApiError("bad_request", "That question couldn't be sent. Questions can be up to 2,000 characters.");
-    }
-    throw new ApiError("network", `The API returned ${response.status}.`);
+  if (response.status === 422) {
+    throw new ApiError("bad_request", "That question couldn't be sent. Questions can be up to 2,000 characters.");
   }
+  if (!response.ok || !response.body) throw await toApiError(response);
 
   yield* readNdjson<QueryEvent>(response.body);
+}
+
+export async function uploadDocument(file: File): Promise<DocumentSummary> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch("/api/documents", { method: "POST", body: form });
+  if (!response.ok) throw await toApiError(response);
+  return (await response.json()) as DocumentSummary;
+}
+
+export async function deleteDocument(id: string): Promise<void> {
+  const response = await fetch(`/api/documents/${id}`, { method: "DELETE" });
+  if (!response.ok) throw await toApiError(response);
+}
+
+export async function reindexDocument(id: string): Promise<void> {
+  const response = await fetch(`/api/documents/${id}/reindex`, { method: "POST" });
+  if (!response.ok) throw await toApiError(response);
 }

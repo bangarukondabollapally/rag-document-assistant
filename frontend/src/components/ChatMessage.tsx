@@ -18,6 +18,7 @@ interface ChatMessageProps {
 export function ChatMessage({ ref, turn, busy, onRetry, onInspectSource }: ChatMessageProps) {
   const notFound = turn.outcome === "not_found";
   const hasSources = turn.sources !== null && turn.sources.length > 0;
+  const spansDocuments = new Set(turn.sources?.map((source) => source.document_id)).size > 1;
 
   return (
     <article ref={ref} className={styles.turn}>
@@ -33,10 +34,12 @@ export function ChatMessage({ ref, turn, busy, onRetry, onInspectSource }: ChatM
                 <button
                   type="button"
                   className={styles.chip}
-                  aria-label={`Inspect passage ${source.rank}${source.page ? `, page ${source.page}` : ""}`}
+                  title={source.document}
+                  aria-label={`Inspect passage ${source.rank}${spansDocuments ? `, ${source.document}` : ""}${source.page ? `, page ${source.page}` : ""}`}
                   onClick={() => onInspectSource(turn.id, source.rank)}
                 >
                   <span className={styles.chipRank}>{source.rank}</span>
+                  {spansDocuments && <span className={styles.chipDocument}>{source.document}</span>}
                   {source.page ? `p. ${source.page}` : "no page"}
                 </button>
               </li>
@@ -47,7 +50,9 @@ export function ChatMessage({ ref, turn, busy, onRetry, onInspectSource }: ChatM
 
       {notFound ? (
         <div className={styles.notFound}>
-          <p className={styles.notFoundTitle}>Not found in this document</p>
+          <p className={styles.notFoundTitle}>
+            {turn.documentCount > 1 ? "Not found in the selected documents" : "Not found in this document"}
+          </p>
           <p>
             The model reported that the {turn.sources?.length} closest passages don't answer this. You can inspect them
             to check, or try different wording.

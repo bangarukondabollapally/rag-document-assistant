@@ -1,27 +1,36 @@
 // Mirrors the responses of api.py. Later this can be generated from FastAPI's OpenAPI schema.
 
-export type IndexState = "loading" | "ready" | "not_indexed" | "failed";
+export type EngineState = "loading" | "ready" | "failed";
 
 export interface IndexStatus {
-  state: IndexState;
-  stage: "checking" | "loading_index" | null;
-  reason: string | null;
-  rebuild_command: string | null;
-  pages: number | null;
-  chunks: number | null;
+  state: EngineState;
+  stage: "starting" | "loading_model" | "opening_indexes" | null;
   error: string | null;
   elapsed_seconds: number;
+}
+
+export type DocumentStatus = "uploaded" | "indexing" | "ready" | "failed";
+
+export interface SuggestedQuestion {
+  question: string;
+  note: string | null;
 }
 
 export interface DocumentSummary {
   id: string;
   name: string;
   title: string | null;
-  status: IndexState;
+  status: DocumentStatus;
+  size_bytes: number;
   pages_total: number | null;
   pages_indexed: number | null;
   pages_skipped: Record<string, number>;
   chunks: number | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+  indexed_at: string | null;
+  suggested_questions: SuggestedQuestion[];
 }
 
 export interface PipelineConfig {
@@ -42,21 +51,17 @@ export interface Capabilities {
   conversation_memory: boolean;
 }
 
-export interface SuggestedQuestion {
-  question: string;
-  note: string | null;
-}
-
 export interface Workspace {
   index: IndexStatus;
   documents: DocumentSummary[];
-  suggested_questions: SuggestedQuestion[];
   pipeline: PipelineConfig;
   capabilities: Capabilities;
+  limits: { max_upload_bytes: number };
 }
 
 export interface Source {
   rank: number;
+  document_id: string;
   document: string;
   page: number | null;
   distance: number;
@@ -70,7 +75,14 @@ export type ErrorCode =
   | "network"
   | "generation_failed"
   | "retrieval_failed"
-  | "not_ready"
+  | "no_documents_selected"
+  | "document_not_ready"
+  | "document_not_found"
+  | "document_busy"
+  | "too_large"
+  | "duplicate"
+  | "invalid_type"
+  | "invalid_upload"
   | "bad_request";
 
 export interface QueryError {

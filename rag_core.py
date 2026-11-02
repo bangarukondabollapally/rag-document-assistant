@@ -1,30 +1,25 @@
-"""The RAG pipeline, independent of any UI and of any particular document.
+"""The RAG pipeline, independent of any UI and of how documents are stored.
 
-    document → load → select content pages → chunk → embed → saved FAISS index
-                                                                   ↓
-                              answer ← LLM ← context ← retrieve ← load index
+    PDF → load → select content pages → chunk → embed → saved FAISS index
+                                                              ↓
+                  answer ← LLM ← context ← merged MMR retrieval ← selected indexes
 
-Building an index and opening one are separate operations. Applications call
-open_saved_pipeline, which never builds. Only rebuild_index parses, embeds and saves.
-
-Run `python rag_core.py` to see the index status, or add --rebuild to build the index.
+Building an index and loading one are separate operations. document_store.py decides
+when each happens, and application startup only ever loads.
 """
 
 from __future__ import annotations
 
-import argparse
 import hashlib
-import json
 import logging
 import os
 import re
 import shutil
 import tempfile
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
-from typing import Any, Callable, Iterator
+from typing import Any, Callable, Iterator, Sequence
 
 from dotenv import load_dotenv
 from langchain_community.vectorstores import FAISS
@@ -36,10 +31,7 @@ load_dotenv(ROOT / ".env")
 
 logger = logging.getLogger("rag_core")
 
-# A local development document, not committed, is used when present.
-DEV_DOCUMENT = ROOT / "DocumentLoaders" / "deeplearning.pdf"
 SAMPLE_DOCUMENT = ROOT / "samples" / "rag-guide.pdf"
-DEFAULT_INDEX_ROOT = ROOT / ".rag_index"
 
 CHUNK_SIZE = 500  # characters, not tokens
 CHUNK_OVERLAP = 100
@@ -74,10 +66,6 @@ class IndexLoadError(Exception):
     """A saved index exists but can't be used."""
 
 
-class IndexNotAvailable(Exception):
-    """There's no usable saved index. The message says why, and is safe to show."""
-
-
 def _no_op(stage: str, details: dict[str, Any]) -> None:
     pass
 
@@ -95,50 +83,22 @@ def llm_model_name() -> str:
     return os.environ.get("RAG_LLM_MODEL") or DEFAULT_LLM_MODEL
 
 
-def index_root() -> Path:
-    configured = os.environ.get("RAG_INDEX_DIR")
-    return Path(configured) if configured else DEFAULT_INDEX_ROOT
-
-
-def resolve_document(document: str | Path | None = None) -> Path:
-    """Choose the document: the argument, then RAG_DOCUMENT_PATH, then the defaults."""
-    chosen = document or os.environ.get("RAG_DOCUMENT_PATH")
-    if chosen:
-        path = Path(chosen)
-        return path if path.is_absolute() else ROOT / path
-    return DEV_DOCUMENT if DEV_DOCUMENT.is_file() else SAMPLE_DOCUMENT
-
-
-def suggested_questions(document: Path) -> list[dict[str, str | None]]:
-    """Read optional questions from <name>.questions.json beside the document."""
-    sidecar = document.with_suffix(".questions.json")
-    try:
-        items = json.loads(sidecar.read_text(encoding="utf-8"))
-        return [{"question": str(item["question"]), "note": item.get("note")} for item in items]
-    except FileNotFoundError:
-        return []
-    except (OSError, ValueError, KeyError, TypeError, AttributeError):
-        logger.warning("Ignoring invalid suggested questions in %s", sidecar.name)
-        return []
-
-
 # --- Document loading ---------------------------------------------------------
 
 
-def load_document(path: Path) -> list[Document]:
+def load_document(path: Path, name: str | None = None) -> list[Document]:
     """Read a PDF into one Document per page, keeping page numbers in the metadata."""
+    name = name or path.name
     if not path.is_file():
-        raise DocumentError(
-            f"The document {path.name} was not found. Set RAG_DOCUMENT_PATH in .env to a PDF."
-        )
+        raise DocumentError(f"The stored PDF for {name} is missing. Delete it and upload it again.")
     from langchain_community.document_loaders import PyPDFLoader
 
     try:
         pages = PyPDFLoader(str(path)).load()
     except Exception as exc:
-        raise DocumentError(f"{path.name} could not be read as a PDF.") from exc
+        raise DocumentError(f"{name} could not be read as a PDF.") from exc
     for page in pages:
-        page.metadata["source"] = path.name
+        page.metadata["source"] = name
     return pages
 
 
@@ -207,8 +167,7 @@ def chunk_pages(pages: list[Document]) -> list[Document]:
 
 
 @dataclass(frozen=True)
-class DocumentInfo:
-    name: str
+class IndexStats:
     title: str | None
     pages_total: int
     pages_indexed: int
@@ -216,15 +175,7 @@ class DocumentInfo:
     pages_skipped: dict[str, int] = field(default_factory=dict)
 
 
-@dataclass(frozen=True)
-class IndexCheck:
-    status: str  # "valid", "missing" or "stale"
-    directory: Path
-    reason: str | None = None
-    manifest: dict[str, Any] | None = None
-
-
-def _sha256(path: Path) -> str:
+def file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as file:
         for block in iter(lambda: file.read(1024 * 1024), b""):
@@ -232,7 +183,7 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _settings() -> dict[str, Any]:
+def index_settings() -> dict[str, Any]:
     """Everything that changes an index's contents. A difference requires a rebuild."""
     return {
         "chunk_size": CHUNK_SIZE,
@@ -240,33 +191,6 @@ def _settings() -> dict[str, Any]:
         "embedding_model": EMBEDDING_MODEL,
         "ingest_version": INGEST_VERSION,
     }
-
-
-def _index_directory(document_hash: str) -> Path:
-    return index_root() / document_hash[:32]
-
-
-def check_index(document: Path) -> IndexCheck:
-    """Report whether a usable saved index exists, without loading it."""
-    if not document.is_file():
-        raise DocumentError(
-            f"The document {document.name} was not found. Set RAG_DOCUMENT_PATH in .env to a PDF."
-        )
-    document_hash = _sha256(document)
-    directory = _index_directory(document_hash)
-    # The manifest is written last, so an interrupted build never has one.
-    try:
-        manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return IndexCheck("missing", directory, "No saved index exists for this document.")
-    except (OSError, ValueError):
-        return IndexCheck("stale", directory, "The saved index's manifest couldn't be read.")
-
-    if manifest.get("document_sha256") != document_hash:
-        return IndexCheck("stale", directory, "The document has changed.")
-    if manifest.get("settings") != _settings():
-        return IndexCheck("stale", directory, "The indexing settings have changed.")
-    return IndexCheck("valid", directory, manifest=manifest)
 
 
 def _make_embeddings() -> Embeddings:
@@ -285,68 +209,55 @@ def _make_llm() -> Any:
     return ChatGroq(model=llm_model_name())
 
 
-def _info_from_manifest(document: Path, manifest: dict[str, Any]) -> DocumentInfo:
-    # The name comes from the current path, so renaming a file doesn't need a rebuild.
-    return DocumentInfo(**{**manifest["document"], "name": document.name})
-
-
 def build_index(
     document: Path,
+    directory: Path,
     embeddings: Embeddings,
+    *,
+    name: str | None = None,
     on_stage: StageCallback = _no_op,
-) -> tuple[FAISS, DocumentInfo]:
+) -> tuple[FAISS, IndexStats]:
     """Create and save an index. Replaces any earlier index only after a full build."""
+    name = name or document.name
     on_stage("loading", {})
-    pages = load_document(document)
+    pages = load_document(document, name)
     kept, skipped = select_content_pages(pages)
     chunks = chunk_pages(kept)
     if not chunks:
-        raise DocumentError(
-            f"{document.name} has no extractable text. Scanned PDFs aren't supported yet."
-        )
+        raise DocumentError(f"{name} has no extractable text. Scanned PDFs aren't supported yet.")
 
     title = pages[0].metadata.get("title") or None
-    info = DocumentInfo(document.name, title, len(pages), len(kept), len(chunks), skipped)
-    logger.info("Indexing %s: kept %d of %d pages, skipped %s", document.name, len(kept), len(pages), skipped)
+    stats = IndexStats(title, len(pages), len(kept), len(chunks), skipped)
+    logger.info("Indexing %s: kept %d of %d pages, skipped %s", name, len(kept), len(pages), skipped)
     on_stage("embedding", {"chunks": len(chunks), "pages": len(kept)})
 
     vectorstore = FAISS.from_documents(chunks, embeddings)
 
-    document_hash = _sha256(document)
-    directory = _index_directory(document_hash)
     directory.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(tempfile.mkdtemp(dir=directory.parent, prefix=".building-"))
     try:
         vectorstore.save_local(str(temporary))
-        manifest = {
-            "document_sha256": document_hash,
-            "settings": _settings(),
-            "document": asdict(info),
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        (temporary / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
         if directory.exists():
             shutil.rmtree(directory)
         temporary.rename(directory)
     finally:
         shutil.rmtree(temporary, ignore_errors=True)
-    return vectorstore, info
+    return vectorstore, stats
 
 
-def load_index(check: IndexCheck, embeddings: Embeddings) -> FAISS:
+def load_index(directory: Path, embeddings: Embeddings, expected_chunks: int) -> FAISS:
     """Load a saved index, confirming that it holds the expected number of chunks."""
     try:
         # FAISS stores its text in a pickle file, and loading a pickle can run code. This
         # is safe only for indexes this application wrote: never load one a user supplies.
         vectorstore = FAISS.load_local(
-            str(check.directory),
+            str(directory),
             embeddings,
             allow_dangerous_deserialization=True,
         )
-        expected = check.manifest["document"]["chunks"]
     except Exception as exc:
         raise IndexLoadError("The saved index couldn't be read.") from exc
-    if vectorstore.index.ntotal != expected:
+    if vectorstore.index.ntotal != expected_chunks:
         raise IndexLoadError("The saved index is incomplete.")
     return vectorstore
 
@@ -357,10 +268,18 @@ def load_index(check: IndexCheck, embeddings: Embeddings) -> FAISS:
 @dataclass(frozen=True)
 class RetrievedChunk:
     rank: int
+    document_id: str
     document: str
     text: str
     page: int | None
     distance: float
+
+
+@dataclass(frozen=True)
+class SearchableDocument:
+    id: str
+    name: str
+    index: FAISS
 
 
 def _page_number(metadata: dict[str, Any]) -> int | None:
@@ -375,10 +294,52 @@ def is_not_found(answer: str) -> bool:
     return normalized == NOT_FOUND_MESSAGE.casefold()
 
 
+def retrieve(documents: Sequence[SearchableDocument], question: str) -> list[RetrievedChunk]:
+    """Run MMR over the closest chunks of the given documents, and no others.
+
+    Each index gives its nearest candidates. They're merged by distance, so the MMR step
+    sees the same number of candidates as for a single document. For one document this
+    is the same calculation as FAISS.max_marginal_relevance_search_with_score_by_vector.
+    """
+    if not documents:
+        raise ValueError("retrieve needs at least one document.")
+    import numpy as np
+    from langchain_community.vectorstores.utils import maximal_marginal_relevance
+
+    embedding = documents[0].index.embeddings.embed_query(question)
+    query = np.array([embedding], dtype=np.float32)
+
+    candidates = []
+    for document in documents:
+        distances, positions = document.index.index.search(query, SEARCH_FETCH_K)
+        for distance, position in zip(distances[0], positions[0]):
+            if position != -1:
+                candidates.append((float(distance), document, int(position)))
+    candidates.sort(key=lambda candidate: candidate[0])
+    candidates = candidates[:SEARCH_FETCH_K]
+
+    vectors = [document.index.index.reconstruct(position) for _, document, position in candidates]
+    selected = maximal_marginal_relevance(query, vectors, lambda_mult=SEARCH_LAMBDA, k=SEARCH_K)
+
+    chunks = []
+    for rank, candidate_number in enumerate(selected, start=1):
+        distance, document, position = candidates[candidate_number]
+        stored = document.index.docstore.search(document.index.index_to_docstore_id[position])
+        chunks.append(
+            RetrievedChunk(
+                rank=rank,
+                document_id=document.id,
+                document=document.name,
+                text=stored.page_content,
+                page=_page_number(stored.metadata),
+                distance=distance,
+            )
+        )
+    return chunks
+
+
 class RagPipeline:
-    def __init__(self, vectorstore: FAISS, document: DocumentInfo, llm: Any = None):
-        self.vectorstore = vectorstore
-        self.document = document
+    def __init__(self, llm: Any = None):
         self._llm = llm
 
     @property
@@ -388,25 +349,8 @@ class RagPipeline:
             self._llm = _make_llm()
         return self._llm
 
-    def retrieve(self, question: str) -> list[RetrievedChunk]:
-        """Run MMR retrieval, keeping the distance the plain retriever discards."""
-        embedding = self.vectorstore.embeddings.embed_query(question)
-        results = self.vectorstore.max_marginal_relevance_search_with_score_by_vector(
-            embedding,
-            k=SEARCH_K,
-            fetch_k=SEARCH_FETCH_K,
-            lambda_mult=SEARCH_LAMBDA,
-        )
-        return [
-            RetrievedChunk(
-                rank=rank,
-                document=self.document.name,
-                text=doc.page_content,
-                page=_page_number(doc.metadata),
-                distance=float(score),
-            )
-            for rank, (doc, score) in enumerate(results, start=1)
-        ]
+    def retrieve(self, documents: Sequence[SearchableDocument], question: str) -> list[RetrievedChunk]:
+        return retrieve(documents, question)
 
     def _messages(self, question: str, chunks: list[RetrievedChunk]) -> Any:
         context = "\n\n".join(chunk.text for chunk in chunks)
@@ -420,63 +364,5 @@ class RagPipeline:
             if part.content:
                 yield part.content
 
-    def answer(self, question: str) -> str:
-        return self.generate(question, self.retrieve(question))
-
-
-def open_saved_pipeline(
-    document: str | Path | None = None,
-    *,
-    on_stage: StageCallback = _no_op,
-    embeddings: Embeddings | None = None,
-    llm: Any = None,
-) -> RagPipeline:
-    """Open the document's saved index. Raises IndexNotAvailable rather than building one."""
-    path = resolve_document(document)
-    on_stage("checking", {})
-    check = check_index(path)
-    if check.status != "valid":
-        raise IndexNotAvailable(check.reason)
-
-    info = _info_from_manifest(path, check.manifest)
-    on_stage("loading_index", {"chunks": info.chunks, "pages": info.pages_indexed})
-    try:
-        vectorstore = load_index(check, embeddings or _make_embeddings())
-    except IndexLoadError as exc:
-        raise IndexNotAvailable(str(exc)) from exc
-    logger.info("Loaded the saved index for %s", path.name)
-    return RagPipeline(vectorstore, info, llm)
-
-
-def rebuild_index(
-    document: str | Path | None = None,
-    *,
-    on_stage: StageCallback = _no_op,
-    embeddings: Embeddings | None = None,
-) -> DocumentInfo:
-    """Explicitly parse, chunk and embed a document, and save the resulting index."""
-    _, info = build_index(resolve_document(document), embeddings or _make_embeddings(), on_stage)
-    return info
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Show or rebuild the saved document index.")
-    parser.add_argument("--document", help="PDF path. Defaults to RAG_DOCUMENT_PATH, then the default document.")
-    parser.add_argument("--rebuild", action="store_true", help="Rebuild the index even if it's valid.")
-    args = parser.parse_args()
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
-
-    path = resolve_document(args.document)
-    try:
-        check = check_index(path)
-        print(f"Document: {path.name}\nIndex: {check.status}" + (f" ({check.reason})" if check.reason else ""))
-        if args.rebuild:
-            info = rebuild_index(path, on_stage=lambda stage, details: print(f"  {stage} {details or ''}"))
-            print(f"Built: {info.chunks} chunks from {info.pages_indexed} of {info.pages_total} pages, "
-                  f"skipped {info.pages_skipped}")
-    except DocumentError as exc:
-        raise SystemExit(str(exc)) from exc
-
-
-if __name__ == "__main__":
-    main()
+    def answer(self, documents: Sequence[SearchableDocument], question: str) -> str:
+        return self.generate(question, self.retrieve(documents, question))

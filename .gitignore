@@ -17,3 +17,6 @@ chroma_db/
 DocumentLoaders/
 *.pdf
 !samples/*.pdf
+
+# Uploaded PDFs and their indexes.
+/documents/

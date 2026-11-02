@@ -1,4 +1,7 @@
+import { useState } from "react";
 import type { DocumentSummary, IndexStatus, PipelineConfig, Workspace } from "../api/types";
+import type { DocumentsState, PendingAction } from "../state/useDocuments";
+import { UploadButton } from "./UploadButton";
 import styles from "./Sidebar.module.css";
 
 function formatDuration(seconds: number): string {
@@ -6,33 +9,95 @@ function formatDuration(seconds: number): string {
   return minutes > 0 ? `${minutes}m ${seconds % 60}s` : `${seconds}s`;
 }
 
-function DocumentItem({ document, index }: { document: DocumentSummary; index: IndexStatus }) {
-  const statusLabel = { loading: "Loading index", ready: "Indexed", not_indexed: "Not indexed", failed: "Failed" }[
-    document.status
-  ];
+function statusText(document: DocumentSummary, pending: PendingAction | undefined): string {
+  if (pending === "deleting") return "Deleting…";
+  switch (document.status) {
+    case "uploaded":
+      return "Waiting to index";
+    case "indexing":
+      return "Indexing…";
+    case "failed":
+      return "Failed";
+    case "ready":
+      return `Ready · ${(document.pages_indexed ?? 0).toLocaleString()} pages · ${(document.chunks ?? 0).toLocaleString()} chunks`;
+  }
+}
+
+interface DocumentItemProps {
+  document: DocumentSummary;
+  checked: boolean;
+  pending: PendingAction | undefined;
+  onToggle: () => void;
+  onDelete: () => void;
+  onReindex: () => void;
+}
+
+function DocumentItem({ document, checked, pending, onToggle, onDelete, onReindex }: DocumentItemProps) {
+  const [confirming, setConfirming] = useState<"delete" | "reindex" | null>(null);
+  const processing = document.status === "uploaded" || document.status === "indexing";
+  const statusClass = processing || pending === "deleting" ? styles.processing : styles[document.status];
+
   return (
     <li className={styles.document}>
-      <div className={styles.documentName}>{document.name}</div>
-      {document.title && <div className={styles.documentTitle}>{document.title}</div>}
-      <div className={`${styles.status} ${styles[document.status]}`}>
-        <span className={styles.dot} aria-hidden="true" />
-        {statusLabel}
-      </div>
-      {document.status === "ready" && document.pages_indexed !== null && (
-        <div className={styles.meta}>
-          {document.pages_indexed} of {document.pages_total} pages · {document.chunks?.toLocaleString()} chunks
+      <label className={styles.documentSelect}>
+        <input type="checkbox" checked={checked} disabled={document.status !== "ready"} onChange={onToggle} />
+        <span className={styles.documentName}>{document.name}</span>
+      </label>
+      <div className={styles.documentBody}>
+        {document.title && <div className={styles.documentTitle}>{document.title}</div>}
+        <div className={`${styles.status} ${statusClass}`}>
+          <span className={styles.dot} aria-hidden="true" />
+          {statusText(document, pending)}
         </div>
-      )}
-      {document.status === "loading" && (
-        <p className={styles.note}>
-          {index.stage === "checking" ? "Checking the saved index." : "Loading the saved index."}{" "}
-          {formatDuration(index.elapsed_seconds)} elapsed.
-        </p>
-      )}
-      {document.status === "not_indexed" && index.reason && <p className={styles.note}>{index.reason}</p>}
-      {document.status === "failed" && index.error && <p className={styles.errorText}>{index.error}</p>}
+        {document.status === "failed" && document.error && <p className={styles.errorText}>{document.error}</p>}
+
+        {!processing && !pending && confirming === null && (
+          <div className={styles.actions}>
+            {document.status === "failed" ? (
+              <button type="button" className={styles.action} onClick={onReindex}>
+                Retry indexing
+              </button>
+            ) : (
+              <button type="button" className={styles.action} onClick={() => setConfirming("reindex")}>
+                Reindex
+              </button>
+            )}
+            <button type="button" className={styles.action} onClick={() => setConfirming("delete")}>
+              Delete
+            </button>
+          </div>
+        )}
+
+        {!pending && confirming !== null && (
+          <div className={styles.actions} role="group" aria-label={`Confirm for ${document.name}`}>
+            <span className={styles.confirmText}>
+              {confirming === "delete" ? "Delete this document and its index?" : "Rebuild this document's index?"}
+            </span>
+            <button
+              type="button"
+              className={`${styles.action} ${styles.confirm}`}
+              onClick={() => {
+                setConfirming(null);
+                if (confirming === "delete") onDelete();
+                else onReindex();
+              }}
+            >
+              {confirming === "delete" ? "Yes, delete" : "Yes, reindex"}
+            </button>
+            <button type="button" className={styles.action} onClick={() => setConfirming(null)}>
+              Cancel
+            </button>
+          </div>
+        )}
+      </div>
     </li>
   );
+}
+
+function SearchEngineStatus({ index }: { index: IndexStatus }) {
+  if (index.state === "failed" && index.error) return <p className={styles.errorText}>{index.error}</p>;
+  if (index.state !== "loading") return null;
+  return <p className={styles.note}>Loading the search index. {formatDuration(index.elapsed_seconds)} elapsed.</p>;
 }
 
 function PipelineSummary({ pipeline }: { pipeline: PipelineConfig }) {
@@ -61,29 +126,68 @@ function PipelineSummary({ pipeline }: { pipeline: PipelineConfig }) {
 interface SidebarProps {
   workspace: Workspace | null;
   unreachable: boolean;
+  documents: DocumentsState;
 }
 
-export function Sidebar({ workspace, unreachable }: SidebarProps) {
+export function Sidebar({ workspace, unreachable, documents }: SidebarProps) {
+  const isEmpty = workspace?.documents.length === 0 && documents.uploads.length === 0;
   return (
     <div className={styles.sidebar}>
       <h1 className={styles.product}>RAG Document Assistant</h1>
 
       <section className={styles.section}>
-        <h2 className={styles.label}>Document</h2>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.label}>Documents</h2>
+          {workspace && <UploadButton disabled={unreachable} onUpload={(file) => void documents.upload(file)} />}
+        </div>
         {unreachable && (
           <p className={styles.errorText}>{workspace ? "API unreachable. Showing the last known state." : "API unreachable."}</p>
         )}
+        {documents.error && (
+          <p className={styles.errorText} role="alert">
+            {documents.error}
+          </p>
+        )}
         {workspace ? (
-          <ul className={styles.documents}>
-            {workspace.documents.map((document) => (
-              <DocumentItem key={document.id} document={document} index={workspace.index} />
-            ))}
-          </ul>
+          <>
+            <SearchEngineStatus index={workspace.index} />
+            {isEmpty ? (
+              <div className={styles.emptyDocuments}>
+                <p className={styles.emptyTitle}>No documents yet</p>
+                <p className={styles.note}>Upload a PDF to get started</p>
+              </div>
+            ) : (
+              <ul className={styles.documents}>
+                {workspace.documents.map((document) => (
+                  <DocumentItem
+                    key={document.id}
+                    document={document}
+                    checked={documents.isChecked(document.id)}
+                    pending={documents.pending[document.id]}
+                    onToggle={() => documents.toggle(document.id)}
+                    onDelete={() => void documents.remove(document.id)}
+                    onReindex={() => void documents.reindex(document.id)}
+                  />
+                ))}
+                {documents.uploads.map((name, position) => (
+                  <li key={`${name}-${position}`} className={styles.document}>
+                    <div className={styles.documentSelect}>
+                      <input type="checkbox" disabled aria-label={`${name} isn't ready`} />
+                      <span className={styles.documentName}>{name}</span>
+                    </div>
+                    <div className={styles.documentBody}>
+                      <div className={`${styles.status} ${styles.processing}`}>
+                        <span className={styles.dot} aria-hidden="true" />
+                        Uploading…
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         ) : (
           !unreachable && <p className={styles.note}>Connecting…</p>
-        )}
-        {workspace && !workspace.capabilities.upload && (
-          <p className={styles.note}>This version reads one PDF, set on the server. Upload isn't built yet.</p>
         )}
       </section>
 

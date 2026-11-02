@@ -1,0 +1,33 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.button:hover {
+  border-color: var(--rubric);
+}
+
+.button:focus-within {
+  outline: 2px solid var(--rubric);
+  outline-offset: 2px;
+}
+
+.disabled {
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+
+@media (max-width: 767px) {
+  .button {
+    min-height: 40px;
+  }
+}

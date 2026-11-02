@@ -1,7 +1,5 @@
 """RAG core tests. They use generated PDFs and fake embeddings, so they need no model or network."""
 
-import json
-import os
 import shutil
 import tempfile
 import unittest
@@ -9,27 +7,16 @@ from pathlib import Path
 from unittest import mock
 
 from langchain_core.documents import Document
-from langchain_core.embeddings import DeterministicFakeEmbedding
 
 import rag_core
+from rag_core import SearchableDocument
 from samples.make_sample import write_pdf
-
-
-class CountingEmbeddings(DeterministicFakeEmbedding):
-    """Counts document embedding calls, which is the expensive step being avoided."""
-
-    calls: int = 0
-
-    def embed_documents(self, texts):
-        self.calls += 1
-        return super().embed_documents(texts)
+from tests.support import CountingEmbeddings, KeywordEmbeddings, topic_pages
 
 
 def make_embeddings():
     return CountingEmbeddings(size=16)
 
-
-LLM = object()
 
 PROSE = "\n".join(f"Sentence number {i} explains how neural networks learn from data." for i in range(12))
 TOC = "\n".join(f"Section Title {i} . . . . . . {i * 7}" for i in range(1, 15))
@@ -125,8 +112,16 @@ class DocumentLoadingTests(unittest.TestCase):
         write_pdf(path, ["Alpha"])
         self.assertEqual(rag_core.load_document(path)[0].metadata["source"], "doc.pdf")
 
+    def test_errors_and_metadata_use_the_given_display_name(self):
+        path = self.directory / "original.pdf"
+        write_pdf(path, ["Alpha"])
+        self.assertEqual(rag_core.load_document(path, "Report.pdf")[0].metadata["source"], "Report.pdf")
+        path.write_bytes(b"not a pdf")
+        with self.assertRaisesRegex(rag_core.DocumentError, "Report.pdf"):
+            rag_core.load_document(path, "Report.pdf")
+
     def test_missing_file_has_an_actionable_message(self):
-        with self.assertRaisesRegex(rag_core.DocumentError, "RAG_DOCUMENT_PATH"):
+        with self.assertRaisesRegex(rag_core.DocumentError, "missing"):
             rag_core.load_document(self.directory / "absent.pdf")
 
     def test_invalid_pdf_is_reported(self):
@@ -136,19 +131,7 @@ class DocumentLoadingTests(unittest.TestCase):
             rag_core.load_document(path)
 
 
-class DocumentResolutionTests(unittest.TestCase):
-    def test_argument_then_environment_then_defaults(self):
-        with mock.patch.dict(os.environ, {"RAG_DOCUMENT_PATH": "from/env.pdf"}):
-            explicit = Path(tempfile.gettempdir()) / "explicit.pdf"
-            self.assertEqual(rag_core.resolve_document(explicit), explicit)
-            self.assertEqual(rag_core.resolve_document(), rag_core.ROOT / "from/env.pdf")
-
-    def test_falls_back_to_the_sample_without_a_local_document(self):
-        with mock.patch.dict(os.environ, clear=False):
-            os.environ.pop("RAG_DOCUMENT_PATH", None)
-            with mock.patch.object(rag_core, "DEV_DOCUMENT", Path("/absent/dev.pdf")):
-                self.assertEqual(rag_core.resolve_document(), rag_core.SAMPLE_DOCUMENT)
-
+class SampleDocumentTests(unittest.TestCase):
     def test_committed_sample_keeps_its_exact_bytes_after_checkout(self):
         # Converted line endings would invalidate the offsets inside the PDF.
         self.assertNotIn(b"\r\n", rag_core.SAMPLE_DOCUMENT.read_bytes())
@@ -158,182 +141,158 @@ class DocumentResolutionTests(unittest.TestCase):
         kept, skipped = rag_core.select_content_pages(pages)
         self.assertEqual(len(kept), len(pages))
         self.assertEqual(skipped, {})
-        self.assertTrue(rag_core.suggested_questions(rag_core.SAMPLE_DOCUMENT))
 
 
-class SuggestedQuestionsTests(unittest.TestCase):
+class IndexBuildAndLoadTests(unittest.TestCase):
     def setUp(self):
         self.directory = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.directory, ignore_errors=True)
-        self.document = self.directory / "doc.pdf"
-        self.sidecar = self.directory / "doc.questions.json"
-
-    def test_absent_file_gives_no_suggestions(self):
-        self.assertEqual(rag_core.suggested_questions(self.document), [])
-
-    def test_reads_questions_and_notes(self):
-        self.sidecar.write_text(json.dumps([{"question": "Why?", "note": "A note"}, {"question": "How?"}]))
-        self.assertEqual(
-            rag_core.suggested_questions(self.document),
-            [{"question": "Why?", "note": "A note"}, {"question": "How?", "note": None}],
-        )
-
-    def test_invalid_file_gives_no_suggestions(self):
-        for content in ("not json", '{"question": "x"}', '[{"note": "no question"}]', "[1]"):
-            self.sidecar.write_text(content)
-            with self.assertLogs("rag_core", "WARNING"):
-                self.assertEqual(rag_core.suggested_questions(self.document), [])
-
-
-class PersistentIndexTests(unittest.TestCase):
-    def setUp(self):
-        self.directory = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, self.directory, ignore_errors=True)
-        patcher = mock.patch.dict(os.environ, {"RAG_INDEX_DIR": str(self.directory / "index")})
-        patcher.start()
-        self.addCleanup(patcher.stop)
         self.document = self.directory / "doc.pdf"
         write_pdf(self.document, [f"Topic {i} covers learning method number {i}." for i in range(10)], title="T")
+        self.index = self.directory / "doc" / "index"
 
-    def open(self, document=None, **kwargs):
-        embeddings = kwargs.pop("embeddings", None) or make_embeddings()
-        pipeline = rag_core.open_saved_pipeline(document or self.document, embeddings=embeddings, llm=LLM, **kwargs)
-        return pipeline, embeddings
+    def build(self, embeddings=None, **kwargs):
+        return rag_core.build_index(self.document, self.index, embeddings or make_embeddings(), **kwargs)
 
-    def rebuild(self, **kwargs):
+    def test_build_saves_an_index_and_reports_its_contents(self):
         embeddings = make_embeddings()
-        return rag_core.rebuild_index(self.document, embeddings=embeddings, **kwargs), embeddings
-
-    def index_dir(self):
-        return rag_core.check_index(self.document).directory
-
-    def assert_not_available(self, reason):
-        embeddings = make_embeddings()
-        with self.assertRaisesRegex(rag_core.IndexNotAvailable, reason):
-            rag_core.open_saved_pipeline(self.document, embeddings=embeddings, llm=LLM)
-        self.assertEqual(embeddings.calls, 0)
-
-    def test_open_without_an_index_raises_and_builds_nothing(self):
-        self.assert_not_available("No saved index")
-        self.assertEqual(rag_core.check_index(self.document).status, "missing")
-        self.assertFalse((self.directory / "index").exists())
-
-    def test_rebuild_saves_a_valid_index_once(self):
-        info, embeddings = self.rebuild()
+        _, stats = self.build(embeddings)
         self.assertEqual(embeddings.calls, 1)
-        self.assertEqual(info.pages_total, 10)
-        self.assertEqual(rag_core.check_index(self.document).status, "valid")
+        self.assertEqual((stats.title, stats.pages_total, stats.pages_indexed), ("T", 10, 10))
+        self.assertTrue((self.index / "index.faiss").is_file())
+        self.assertTrue((self.index / "index.pkl").is_file())
 
-    def test_open_after_rebuild_loads_without_re_embedding(self):
-        self.rebuild()
-        pipeline, embeddings = self.open()
+    def test_load_does_not_embed_anything(self):
+        _, stats = self.build()
+        embeddings = make_embeddings()
+        loaded = rag_core.load_index(self.index, embeddings, stats.chunks)
+        self.assertEqual(loaded.index.ntotal, stats.chunks)
         self.assertEqual(embeddings.calls, 0)
-        self.assertEqual(pipeline.document.pages_total, 10)
 
-    def test_reopened_index_retrieves_identically(self):
-        self.rebuild()
-        first, _ = self.open()
-        second, _ = self.open()
+    def test_a_loaded_index_retrieves_exactly_what_the_built_one_did(self):
+        embeddings = KeywordEmbeddings()
+        built, stats = self.build(embeddings)
+        loaded = rag_core.load_index(self.index, embeddings, stats.chunks)
         for question in ("Topic 3", "learning method", "something else"):
-            self.assertEqual(first.retrieve(question), second.retrieve(question))
+            self.assertEqual(
+                rag_core.retrieve([SearchableDocument("a", "doc.pdf", built)], question),
+                rag_core.retrieve([SearchableDocument("a", "doc.pdf", loaded)], question),
+            )
 
-    def test_retrieval_includes_page_and_document(self):
-        self.rebuild()
-        chunk = self.open()[0].retrieve("Topic 3")[0]
-        self.assertEqual(chunk.document, "doc.pdf")
-        self.assertIn(chunk.page, range(1, 11))
-
-    def test_changed_document_is_not_indexed_until_rebuilt(self):
-        self.rebuild()
-        write_pdf(self.document, ["Completely different content."])
-        self.assert_not_available("No saved index")
-        self.rebuild()
-        self.assertEqual(self.open()[0].document.pages_total, 1)
-
-    def test_renamed_document_reuses_its_index_under_the_new_name(self):
-        self.rebuild()
-        renamed = self.directory / "renamed.pdf"
-        self.document.rename(renamed)
-        pipeline, embeddings = self.open(renamed)
-        self.assertEqual(embeddings.calls, 0)
-        self.assertEqual(pipeline.document.name, "renamed.pdf")
-
-    def test_changed_settings_make_the_index_unavailable_until_rebuilt(self):
-        for attribute, value in (
-            ("CHUNK_SIZE", 400),
-            ("CHUNK_OVERLAP", 50),
-            ("EMBEDDING_MODEL", "other/model"),
-            ("INGEST_VERSION", 99),
-        ):
-            with self.subTest(attribute):
-                self.rebuild()
-                with mock.patch.object(rag_core, attribute, value):
-                    self.assert_not_available("settings")
-                self.open()
-
-    def test_damaged_index_files_are_reported_not_rebuilt(self):
+    def test_damaged_index_files_are_reported(self):
         for name in ("index.faiss", "index.pkl"):
             with self.subTest(name):
-                self.rebuild()
-                (self.index_dir() / name).write_bytes(b"damaged")
-                self.assert_not_available("couldn't be read")
+                _, stats = self.build()
+                (self.index / name).write_bytes(b"damaged")
+                with self.assertRaisesRegex(rag_core.IndexLoadError, "couldn't be read"):
+                    rag_core.load_index(self.index, make_embeddings(), stats.chunks)
 
-    def test_damaged_manifest_is_reported(self):
-        self.rebuild()
-        (self.index_dir() / "manifest.json").write_text("not json")
-        self.assertEqual(rag_core.check_index(self.document).status, "stale")
-        self.assert_not_available("manifest")
+    def test_an_incomplete_index_is_reported(self):
+        _, stats = self.build()
+        with self.assertRaisesRegex(rag_core.IndexLoadError, "incomplete"):
+            rag_core.load_index(self.index, make_embeddings(), stats.chunks + 1)
 
-    def test_incomplete_index_is_reported(self):
-        self.rebuild()
-        manifest_path = self.index_dir() / "manifest.json"
-        manifest = json.loads(manifest_path.read_text())
-        manifest["document"]["chunks"] += 1
-        manifest_path.write_text(json.dumps(manifest))
-        self.assert_not_available("incomplete")
+    def test_a_missing_index_is_reported(self):
+        with self.assertRaises(rag_core.IndexLoadError):
+            rag_core.load_index(self.index, make_embeddings(), 1)
 
-    def test_interrupted_build_leaves_no_valid_index_or_temporary_files(self):
+    def test_an_interrupted_build_leaves_no_index_or_temporary_files(self):
         with mock.patch.object(rag_core.FAISS, "save_local", side_effect=OSError("disk full")):
             with self.assertRaises(OSError):
-                self.rebuild()
-        self.assertEqual(rag_core.check_index(self.document).status, "missing")
-        self.assertEqual(list((self.directory / "index").iterdir()), [])
+                self.build()
+        self.assertFalse(self.index.exists())
+        self.assertEqual(list(self.index.parent.iterdir()), [])
 
-    def test_failed_rebuild_keeps_the_existing_index(self):
-        self.rebuild()
+    def test_a_failed_rebuild_keeps_the_existing_index(self):
+        _, stats = self.build()
         with mock.patch.object(rag_core.FAISS, "save_local", side_effect=OSError("disk full")):
             with self.assertRaises(OSError):
-                self.rebuild()
-        self.assertEqual(rag_core.check_index(self.document).status, "valid")
-        self.open()
+                self.build()
+        self.assertIsNotNone(rag_core.load_index(self.index, make_embeddings(), stats.chunks))
 
-    def test_document_without_text_fails_clearly_and_saves_nothing(self):
+    def test_a_document_without_text_fails_clearly_and_saves_nothing(self):
         write_pdf(self.document, ["", ""])
         with self.assertRaisesRegex(rag_core.DocumentError, "no extractable text"):
-            self.rebuild()
-        self.assertEqual(rag_core.check_index(self.document).status, "missing")
+            self.build()
+        self.assertFalse(self.index.exists())
 
-    def test_missing_document_is_reported(self):
-        self.document.unlink()
-        with self.assertRaises(rag_core.DocumentError):
-            self.open()
+    def test_stages_are_reported_in_order(self):
+        seen = []
+        self.build(on_stage=lambda stage, details: seen.append(stage))
+        self.assertEqual(seen, ["loading", "embedding"])
 
+
+class ScopedRetrievalTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.directory, ignore_errors=True)
+        self.embeddings = KeywordEmbeddings()
+
+    def document(self, keyword, count=4):
+        path = self.directory / f"{keyword}.pdf"
+        write_pdf(path, topic_pages(keyword, count))
+        vectorstore, _ = rag_core.build_index(path, self.directory / keyword, self.embeddings)
+        return SearchableDocument(f"id-{keyword}", f"{keyword}.pdf", vectorstore)
+
+    def test_one_document_gives_exactly_the_native_faiss_mmr_result(self):
+        document = self.document("alpha", 30)
+        for question in ("alpha", "part 3", "beta", "alpha systems part 12"):
+            native = document.index.max_marginal_relevance_search_with_score_by_vector(
+                self.embeddings.embed_query(question),
+                k=rag_core.SEARCH_K,
+                fetch_k=rag_core.SEARCH_FETCH_K,
+                lambda_mult=rag_core.SEARCH_LAMBDA,
+            )
+            merged = rag_core.retrieve([document], question)
+            self.assertEqual([chunk.text for chunk in merged], [doc.page_content for doc, _ in native])
+            self.assertEqual([chunk.distance for chunk in merged], [float(score) for _, score in native])
+
+    def test_results_come_only_from_the_given_documents(self):
+        alpha, beta, gamma = self.document("alpha"), self.document("beta"), self.document("gamma")
+        chunks = rag_core.retrieve([beta], "alpha")
+        self.assertEqual({chunk.document_id for chunk in chunks}, {"id-beta"})
+        chunks = rag_core.retrieve([alpha, beta], "gamma")
+        self.assertLessEqual({chunk.document_id for chunk in chunks}, {"id-alpha", "id-beta"})
+        self.assertIsNotNone(gamma)
+
+    def test_several_documents_can_all_contribute(self):
+        chunks = rag_core.retrieve([self.document("alpha"), self.document("beta")], "alpha beta")
+        self.assertEqual({chunk.document for chunk in chunks}, {"alpha.pdf", "beta.pdf"})
+
+    def test_the_closest_document_supplies_the_top_result(self):
+        chunks = rag_core.retrieve([self.document("alpha"), self.document("beta")], "beta")
+        self.assertEqual(chunks[0].document, "beta.pdf")
+
+    def test_the_total_stays_within_the_configured_limit(self):
+        documents = [self.document(word, 12) for word in ("alpha", "beta", "gamma")]
+        self.assertEqual(len(rag_core.retrieve(documents, "alpha beta gamma")), rag_core.SEARCH_K)
+
+    def test_ranks_are_sequential_across_documents(self):
+        chunks = rag_core.retrieve([self.document("alpha"), self.document("beta")], "alpha beta")
+        self.assertEqual([chunk.rank for chunk in chunks], list(range(1, len(chunks) + 1)))
+
+    def test_each_chunk_keeps_its_own_document_and_page(self):
+        chunks = rag_core.retrieve([self.document("alpha"), self.document("beta")], "alpha beta")
+        for chunk in chunks:
+            self.assertIn(chunk.document.removesuffix(".pdf"), chunk.text)
+            self.assertIn(f"part {chunk.page}", chunk.text)
+
+    def test_a_document_smaller_than_the_candidate_count_works(self):
+        self.assertEqual(len(rag_core.retrieve([self.document("alpha", 2)], "alpha")), 2)
+
+    def test_searching_no_documents_is_an_error_not_a_global_search(self):
+        with self.assertRaises(ValueError):
+            rag_core.retrieve([], "alpha")
+
+
+class PipelineTests(unittest.TestCase):
     def test_opening_does_not_create_the_llm_until_it_is_used(self):
-        self.rebuild()
         with mock.patch.object(rag_core, "_make_llm", return_value="the llm") as make_llm:
-            pipeline = rag_core.open_saved_pipeline(self.document, embeddings=make_embeddings())
+            pipeline = rag_core.RagPipeline()
             make_llm.assert_not_called()
             self.assertEqual(pipeline.llm, "the llm")
             self.assertEqual(pipeline.llm, "the llm")
             make_llm.assert_called_once()
-
-    def test_stages_show_which_operation_ran(self):
-        seen = []
-        self.rebuild(on_stage=lambda stage, details: seen.append(stage))
-        self.assertEqual(seen, ["loading", "embedding"])
-        seen.clear()
-        self.open(on_stage=lambda stage, details: seen.append(stage))
-        self.assertEqual(seen, ["checking", "loading_index"])
 
 
 class PromptTests(unittest.TestCase):

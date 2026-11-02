@@ -9,15 +9,15 @@ export function useConversation() {
 
   useEffect(() => () => active.current?.abort(), []);
 
-  const ask = useCallback(async (question: string) => {
+  const ask = useCallback(async (question: string, documentIds: string[]) => {
     active.current?.abort();
     const controller = new AbortController();
     active.current = controller;
     const id = nextId.current++;
-    dispatch({ type: "submit", id, question });
+    dispatch({ type: "submit", id, question, documentCount: documentIds.length });
 
     try {
-      for await (const event of streamQuery(question, controller.signal)) {
+      for await (const event of streamQuery(question, documentIds, controller.signal)) {
         dispatch({ type: "event", id, event });
       }
       dispatch({ type: "stream_ended", id });

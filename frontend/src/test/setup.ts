@@ -5,6 +5,7 @@ import { afterEach, vi } from "vitest";
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  localStorage.clear();
 });
 
 // jsdom implements neither matchMedia, modal dialogs nor scrollIntoView.

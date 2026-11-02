@@ -40,11 +40,17 @@ export function describeQueryError(error: QueryError): { title: string; message:
       return { title: "Search failed", message: error.message };
     case "network":
       return { title: "Connection problem", message: error.message };
-    case "not_ready":
-      return { title: "Index not ready", message: error.message };
+    case "no_documents_selected":
+      return { title: "No document selected", message: error.message };
+    case "document_not_ready":
+      return { title: "Document not ready", message: error.message };
+    case "document_not_found":
+      return { title: "Document not found", message: error.message };
     case "bad_request":
       return { title: "Question not sent", message: error.message };
     case "generation_failed":
       return { title: "No answer generated", message: error.message };
+    default:
+      return { title: "Request failed", message: error.message };
   }
 }

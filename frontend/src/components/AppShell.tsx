@@ -36,16 +36,16 @@ export function AppShell({
   return (
     <div className={styles.shell}>
       {sidebarInline ? (
-        <aside className={styles.sidebar} aria-label="Document">
+        <aside className={styles.sidebar} aria-label="Documents">
           {sidebar}
         </aside>
       ) : (
-        <Sheet open={menuOpen} side="left" label="Document" onClose={() => setMenuOpen(false)}>
+        <Sheet open={menuOpen} side="left" label="Documents" onClose={() => setMenuOpen(false)}>
           <div className={styles.drawer}>
             <button
               type="button"
               className={styles.drawerClose}
-              aria-label="Close document details"
+              aria-label="Close documents"
               onClick={() => setMenuOpen(false)}
             >
               <CloseIcon />
@@ -58,7 +58,7 @@ export function AppShell({
       <main className={styles.main}>
         <header className={styles.header}>
           {!sidebarInline && (
-            <button type="button" className={styles.iconButton} aria-label="Open document details" onClick={() => setMenuOpen(true)}>
+            <button type="button" className={styles.iconButton} aria-label="Open documents" onClick={() => setMenuOpen(true)}>
               <MenuIcon />
             </button>
           )}

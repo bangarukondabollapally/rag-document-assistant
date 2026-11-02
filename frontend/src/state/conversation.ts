@@ -5,6 +5,7 @@ export type TurnStage = "retrieving" | "generating" | "complete" | "stopped" | "
 export interface Turn {
   id: number;
   question: string;
+  documentCount: number;
   stage: TurnStage;
   sources: Source[] | null;
   answer: string;
@@ -16,7 +17,7 @@ export interface Turn {
 }
 
 export type ConversationAction =
-  | { type: "submit"; id: number; question: string }
+  | { type: "submit"; id: number; question: string; documentCount?: number }
   | { type: "event"; id: number; event: QueryEvent }
   | { type: "stopped"; id: number }
   | { type: "failed"; id: number; error: QueryError }
@@ -66,6 +67,7 @@ export function conversationReducer(turns: Turn[], action: ConversationAction): 
         {
           id: action.id,
           question: action.question,
+          documentCount: action.documentCount ?? 1,
           stage: "retrieving",
           sources: null,
           answer: "",

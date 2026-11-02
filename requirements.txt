@@ -11,3 +11,5 @@ langchain-text-splitters
 python-dotenv
 fastapi
 uvicorn
+python-multipart
+

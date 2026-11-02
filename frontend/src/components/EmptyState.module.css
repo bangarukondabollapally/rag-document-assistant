@@ -93,3 +93,13 @@
     padding-inline: 16px;
   }
 }
+
+.emptyAction {
+  margin-top: 16px;
+}
+
+.uploadError {
+  margin: 12px 0 0;
+  color: var(--error);
+  overflow-wrap: anywhere;
+}

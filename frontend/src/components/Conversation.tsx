@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { Workspace } from "../api/types";
+import type { DocumentsState } from "../state/useDocuments";
 import type { Turn } from "../state/conversation";
 import { isBusy } from "../state/conversation";
 import { ChatMessage } from "./ChatMessage";
@@ -19,11 +20,12 @@ interface ConversationProps {
   unreachable: boolean;
   turns: Turn[];
   ready: boolean;
+  documents: DocumentsState;
   onAsk: (question: string) => void;
   onInspectSource: (turnId: number, rank: number) => void;
 }
 
-export function Conversation({ workspace, unreachable, turns, ready, onAsk, onInspectSource }: ConversationProps) {
+export function Conversation({ workspace, unreachable, turns, ready, documents, onAsk, onInspectSource }: ConversationProps) {
   const latest = useRef<HTMLElement>(null);
   const last = turns[turns.length - 1];
   const lastId = last?.id;
@@ -35,7 +37,7 @@ export function Conversation({ workspace, unreachable, turns, ready, onAsk, onIn
   }, [lastId]);
 
   if (turns.length === 0) {
-    return <EmptyState workspace={workspace} unreachable={unreachable} ready={ready} onAsk={onAsk} />;
+    return <EmptyState workspace={workspace} unreachable={unreachable} ready={ready} documents={documents} onAsk={onAsk} />;
   }
 
   return (

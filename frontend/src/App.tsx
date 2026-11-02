@@ -5,25 +5,28 @@ import { QueryInput } from "./components/QueryInput";
 import { Sidebar } from "./components/Sidebar";
 import { SourcePanel, type SourceFocus } from "./components/SourcePanel";
 import { useConversation } from "./state/useConversation";
+import { useDocuments } from "./state/useDocuments";
 import { useMediaQuery } from "./state/useMediaQuery";
 import { useWorkspace } from "./state/useWorkspace";
 
 export function App() {
-  const { workspace, unreachable } = useWorkspace();
+  const { workspace, unreachable, refresh } = useWorkspace();
+  const documents = useDocuments(workspace, refresh);
   const { turns, ask, stop, reset, busy } = useConversation();
   const [focus, setFocus] = useState<SourceFocus | null>(null);
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const isWide = useMediaQuery("(min-width: 1180px)");
 
   const panelTurn = turns.find((turn) => turn.id === focus?.turnId) ?? turns[turns.length - 1] ?? null;
-  const ready = workspace?.index.state === "ready" && !unreachable;
+  const { selected, selectedIds } = documents;
+  const ready = workspace?.index.state === "ready" && !unreachable && selectedIds.length > 0;
 
   const handleAsk = useCallback(
     (question: string) => {
       setFocus(null);
-      void ask(question);
+      void ask(question, selectedIds);
     },
-    [ask],
+    [ask, selectedIds],
   );
 
   const handleReset = useCallback(() => {
@@ -41,18 +44,24 @@ export function App() {
   if (unreachable) inputBlockedReason = "The API is unreachable.";
   else if (!workspace) inputBlockedReason = "Connecting to the API…";
   else if (workspace.index.state === "loading") inputBlockedReason = "Available when the index has loaded.";
-  else if (workspace.index.state === "not_indexed") inputBlockedReason = "This document hasn't been indexed.";
   else if (workspace.index.state === "failed") inputBlockedReason = "The index couldn't be opened.";
+  else if (workspace.documents.length === 0) inputBlockedReason = "Upload a PDF to get started.";
+  else if (selected.length === 0) {
+    const anyReady = workspace.documents.some((document) => document.status === "ready");
+    inputBlockedReason = anyReady ? "Select a document to ask a question." : "Available when a document is ready.";
+  }
+
+  const scope = selected.length === 1 ? (selected[0]?.name ?? null) : selected.length > 1 ? `${selected.length} documents` : null;
 
   return (
     <AppShell
-      documentName={workspace?.documents[0]?.name ?? null}
+      documentName={scope}
       hasTurns={turns.length > 0}
       sourceCount={panelTurn?.sources?.length ?? 0}
       sourcesOpen={sourcesOpen}
       onSourcesOpenChange={setSourcesOpen}
       onReset={handleReset}
-      sidebar={<Sidebar workspace={workspace} unreachable={unreachable} />}
+      sidebar={<Sidebar workspace={workspace} unreachable={unreachable} documents={documents} />}
       sources={
         <SourcePanel
           turn={panelTurn}
@@ -67,6 +76,7 @@ export function App() {
           unreachable={unreachable}
           turns={turns}
           ready={ready}
+          documents={documents}
           onAsk={handleAsk}
           onInspectSource={inspectSource}
         />

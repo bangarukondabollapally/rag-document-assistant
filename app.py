@@ -1,38 +1,60 @@
+"""The original Streamlit interface, kept as a simple alternative to the React workspace."""
+
 import streamlit as st
 
-from rag_core import DocumentError, IndexNotAvailable, open_saved_pipeline, rebuild_index
+from document_store import DocumentStore, UploadRejected
+from rag_core import SAMPLE_DOCUMENT, RagPipeline
 
 
-# Failures aren't cached, so this tries again on the next run.
 @st.cache_resource
-def setup_rag():
-    return open_saved_pipeline()
+def get_store() -> DocumentStore:
+    store = DocumentStore()
+    store.load()
+    return store
 
 
-def index_is_ready() -> bool:
+@st.cache_resource
+def get_pipeline() -> RagPipeline:
+    return RagPipeline()
+
+
+def index_sample(store: DocumentStore) -> None:
+    """Indexing runs only because the button was pressed."""
     try:
-        setup_rag()
-        return True
-    except DocumentError as exc:
-        st.error(str(exc))
-    except IndexNotAvailable as exc:
-        st.warning(f"No index available. {exc}")
-        if st.button("Build index"):
-            with st.spinner("Building the index. This can take a few minutes on a CPU."):
-                rebuild_index()
+        document_id = store.add_file(SAMPLE_DOCUMENT).id
+    except UploadRejected as exc:
+        if not exc.document_id:
+            raise
+        document_id = exc.document_id
+    store.index_now(document_id)
+
+
+def choose_documents(store: DocumentStore) -> list[str]:
+    ready = [record for record in store.list() if record.status == "ready"]
+    if not ready:
+        st.info("No documents are indexed yet.")
+        if st.button("Index the sample document"):
+            with st.spinner("Indexing the sample document..."):
+                index_sample(store)
             st.rerun()
-    return False
+        return []
 
-
-def get_answer(query: str) -> str:
-    return setup_rag().answer(query)
+    names = {record.id: record.name for record in ready}
+    return st.multiselect(
+        "Documents to search",
+        options=list(names),
+        default=list(names)[:1],
+        format_func=names.get,
+    )
 
 
 def render_chat_ui():
     st.title("📑 RAG Document Assistant")
-    st.caption("Ask questions about your document!")
+    st.caption("Ask questions about your documents!")
 
-    if not index_is_ready():
+    store = get_store()
+    selected = choose_documents(store)
+    if not selected:
         return
 
     if "messages" not in st.session_state:
@@ -42,7 +64,7 @@ def render_chat_ui():
         with st.chat_message(message["role"]):
             st.write(message["content"])
 
-    query = st.chat_input("Ask a question about the document...")
+    query = st.chat_input("Ask a question about the selected documents...")
 
     if query:
         st.session_state.messages.append({"role": "user", "content": query})
@@ -50,8 +72,8 @@ def render_chat_ui():
             st.write(query)
 
         with st.chat_message("assistant"):
-            with st.spinner("Searching document..."):
-                answer = get_answer(query)
+            with st.spinner("Searching documents..."):
+                answer = get_pipeline().answer(store.searchable(selected), query)
             st.write(answer)
             st.session_state.messages.append({
                 "role": "assistant",

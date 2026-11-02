@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { App } from "../App";
-import { answeredEvents, ndjsonResponse, SOURCES, stubApi, workspaceFixture } from "./fixtures";
+import { answeredEvents, documentFixture, ndjsonResponse, SOURCES, stubApi, workspaceFixture } from "./fixtures";
 
 // Loads the lazy answer chunk up front, so assertions don't race its import on a busy machine.
 beforeAll(async () => {
@@ -18,31 +18,14 @@ async function ask(question = "What does it do?") {
 }
 
 describe("App", () => {
-  it("blocks asking while the saved index loads, and reports the real stage", async () => {
-    const workspace = workspaceFixture({ state: "loading", stage: "loading_index", elapsed_seconds: 3 });
+  it("blocks asking while the saved index loads, and reports it", async () => {
+    const workspace = workspaceFixture({ state: "loading", stage: "opening_indexes", elapsed_seconds: 3 });
     vi.stubGlobal("fetch", stubApi(workspace, () => ndjsonResponse([])));
     render(<App />);
 
-    expect(await screen.findByText(/Loading the saved index\. 3s elapsed/)).toBeInTheDocument();
+    expect(await screen.findByText(/Loading the search index\. 3s elapsed/)).toBeInTheDocument();
     expect(screen.getByLabelText("Question about the document")).toBeDisabled();
     expect(screen.getByRole("button", { name: /What is an LSTM/ })).toBeDisabled();
-  });
-
-  it("reports a missing index and the explicit command, and offers no build action", async () => {
-    const workspace = workspaceFixture({
-      state: "not_indexed",
-      reason: "No saved index exists for this document.",
-      rebuild_command: "python rag_core.py --rebuild",
-    });
-    const fetchMock = vi.fn(stubApi(workspace, () => ndjsonResponse([])));
-    vi.stubGlobal("fetch", fetchMock);
-    render(<App />);
-
-    expect(await screen.findByRole("alert")).toHaveTextContent("No index available");
-    expect(screen.getByText("python rag_core.py --rebuild")).toBeInTheDocument();
-    expect(screen.getByText("Not indexed")).toBeInTheDocument();
-    expect(screen.getByLabelText("Question about the document")).toBeDisabled();
-    expect(fetchMock.mock.calls.every(([url]) => url === "/api/workspace")).toBe(true);
   });
 
   it("only reads workspace status when it loads, and never requests a build", async () => {
@@ -50,12 +33,12 @@ describe("App", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<App />);
 
-    await screen.findByText("Indexed");
+    await screen.findByText(/^Ready/);
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(["/api/workspace"]);
   });
 
   it("omits the suggestions section for a document without suggested questions", async () => {
-    const workspace = { ...workspaceFixture(), suggested_questions: [] };
+    const workspace = workspaceFixture({}, [documentFixture({ suggested_questions: [] })]);
     vi.stubGlobal("fetch", stubApi(workspace, () => ndjsonResponse([])));
     render(<App />);
 
@@ -63,20 +46,12 @@ describe("App", () => {
     expect(screen.queryByText("Try one")).not.toBeInTheDocument();
   });
 
-  it("offers no upload control while the backend has no upload", async () => {
-    vi.stubGlobal("fetch", stubApi(workspaceFixture(), () => ndjsonResponse([])));
-    render(<App />);
-
-    await screen.findByText("Upload isn't built yet", { exact: false });
-    expect(screen.queryByRole("button", { name: /upload/i })).not.toBeInTheDocument();
-  });
-
-  it("shows the indexing error when the build fails", async () => {
-    const workspace = workspaceFixture({ state: "failed", error: "GROQ_API_KEY is not set." });
+  it("shows the error when the search index can't be opened", async () => {
+    const workspace = workspaceFixture({ state: "failed", error: "The search index could not be opened." });
     vi.stubGlobal("fetch", stubApi(workspace, () => ndjsonResponse([])));
     render(<App />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("GROQ_API_KEY is not set.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("The search index could not be opened.");
   });
 
   it("explains how to start the API when it can't be reached", async () => {
