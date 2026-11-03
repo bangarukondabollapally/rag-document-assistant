@@ -48,7 +48,10 @@ export function App() {
   else if (workspace.documents.length === 0) inputBlockedReason = "Upload a PDF to get started.";
   else if (selected.length === 0) {
     const anyReady = workspace.documents.some((document) => document.status === "ready");
-    inputBlockedReason = anyReady ? "Select a document to ask a question." : "Available when a document is ready.";
+    const blocking = documents.blocking;
+    if (blocking && blocking.status !== "failed") inputBlockedReason = "Available when a document is ready.";
+    else if (anyReady) inputBlockedReason = "Select a document to ask a question.";
+    else inputBlockedReason = "Upload a PDF that can be indexed to ask a question.";
   }
 
   const scope = selected.length === 1 ? (selected[0]?.name ?? null) : selected.length > 1 ? `${selected.length} documents` : null;

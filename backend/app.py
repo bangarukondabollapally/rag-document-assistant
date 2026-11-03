@@ -3,7 +3,7 @@
 import streamlit as st
 
 from document_store import DocumentStore, UploadRejected
-from rag_core import SAMPLE_DOCUMENT, RagPipeline
+from rag_core import RagPipeline
 
 
 @st.cache_resource
@@ -18,33 +18,39 @@ def get_pipeline() -> RagPipeline:
     return RagPipeline()
 
 
-def index_sample(store: DocumentStore) -> None:
+def add_document(store: DocumentStore) -> None:
     """Indexing runs only because the button was pressed."""
+    file = st.file_uploader("Upload a PDF", type="pdf")
+    if file is None or not st.button("Add and index"):
+        return
     try:
-        document_id = store.add_file(SAMPLE_DOCUMENT).id
+        with st.spinner(f"Indexing {file.name}..."):
+            record = store.index_now(store.add_upload(file, file.name, "application/pdf").id)
     except UploadRejected as exc:
-        if not exc.document_id:
-            raise
-        document_id = exc.document_id
-    store.index_now(document_id)
+        st.error(exc.message)
+        return
+    if record.status == "failed":
+        # This interface has no retry, and a stored copy would block uploading it again.
+        store.delete(record.id)
+        st.error(record.error)
+        return
+    st.session_state.selected_documents = [record.id]
 
 
 def choose_documents(store: DocumentStore) -> list[str]:
     ready = [record for record in store.list() if record.status == "ready"]
     if not ready:
-        st.info("No documents are indexed yet.")
-        if st.button("Index the sample document"):
-            with st.spinner("Indexing the sample document..."):
-                index_sample(store)
-            st.rerun()
+        st.info("No documents are indexed yet. Upload a PDF to get started.")
         return []
 
     names = {record.id: record.name for record in ready}
+    current = st.session_state.get("selected_documents", list(names)[:1])
+    st.session_state.selected_documents = [document_id for document_id in current if document_id in names]
     return st.multiselect(
         "Documents to search",
         options=list(names),
-        default=list(names)[:1],
         format_func=names.get,
+        key="selected_documents",
     )
 
 
@@ -53,6 +59,7 @@ def render_chat_ui():
     st.caption("Ask questions about your documents!")
 
     store = get_store()
+    add_document(store)
     selected = choose_documents(store)
     if not selected:
         return

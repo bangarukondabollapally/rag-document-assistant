@@ -1,6 +1,6 @@
 """Thin HTTP layer over the document registry and the RAG pipeline.
 
-Run with: uvicorn api:app --port 8000
+Run from backend/ with: uvicorn api:app --port 8000
 
 Starting this API reads document metadata and loads saved indexes. It never parses a
 PDF or builds an index: those happen only after an explicit upload or reindex request.

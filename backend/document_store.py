@@ -1,7 +1,7 @@
 """The document registry: stored PDFs, their metadata, and their saved indexes.
 
-    documents/<id>/
-        original.pdf      The uploaded file. Its name never comes from the client.
+    backend/documents/<id>/
+        original.pdf     The uploaded file. Its name never comes from the client.
         manifest.json     Filename, hash, status, page and chunk counts, settings.
         index/            That document's FAISS index.
         questions.json    Optional suggested questions.
@@ -10,7 +10,7 @@ No database is needed: the folder is the record. Loading the registry only reads
 manifests and checks files, so it stays fast and never parses or embeds a document.
 Indexing happens only when explicitly requested, on one background worker.
 
-Command line use: python document_store.py list | add <pdf> | reindex <id> | delete <id>
+Command line use, from backend/: python document_store.py list | add <pdf> | reindex <id> | delete <id>
 """
 
 from __future__ import annotations

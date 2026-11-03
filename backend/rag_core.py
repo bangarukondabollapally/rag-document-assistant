@@ -27,11 +27,9 @@ from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 
 ROOT = Path(__file__).resolve().parent
-load_dotenv(ROOT / ".env")
+load_dotenv(ROOT.parent / ".env")
 
 logger = logging.getLogger("rag_core")
-
-SAMPLE_DOCUMENT = ROOT / "samples" / "rag-guide.pdf"
 
 CHUNK_SIZE = 500  # characters, not tokens
 CHUNK_OVERLAP = 100

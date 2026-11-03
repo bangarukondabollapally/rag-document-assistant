@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 const API_PORT = 8000;
 const frontend = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const root = resolve(frontend, "..");
+const backend = resolve(root, "backend");
 const children = [];
 
 function findPython() {
@@ -46,7 +47,7 @@ process.on("SIGTERM", () => stopAll());
 if (await isPortInUse(API_PORT)) {
   console.log(`[dev] Port ${API_PORT} is already in use, so the API there will be used.`);
 } else {
-  const api = start(findPython(), ["-m", "uvicorn", "api:app", "--port", String(API_PORT)], root);
+  const api = start(findPython(), ["-m", "uvicorn", "api:app", "--port", String(API_PORT)], backend);
   api.on("error", (error) => console.error(`[dev] The API couldn't start: ${error.message}`));
   api.on("exit", (code) => {
     if (code) console.error(`[dev] The API stopped with exit code ${code}.`);

@@ -66,8 +66,10 @@ describe("document list", () => {
       { "POST /api/documents/doc-f/reindex": () => jsonResponse({}, 202) },
     );
     const { user } = start(api);
-    expect(await screen.findByText("scan.pdf has no extractable text.")).toBeInTheDocument();
+    expect((await screen.findAllByText("scan.pdf has no extractable text.")).length).toBe(2);
+    expect(screen.getByRole("heading", { name: "sample.pdf couldn't be indexed" })).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "sample.pdf" })).toBeDisabled();
+    expect(screen.getByLabelText(QUESTION_INPUT)).toBeDisabled();
 
     await user.click(screen.getByRole("button", { name: "Retry indexing" }));
     await waitFor(() => expect(api.calls.map((call) => call.url)).toContain("/api/documents/doc-f/reindex"));
@@ -150,6 +152,81 @@ describe("upload", () => {
     api.setWorkspace(workspaceFixture({}, [documentFixture({ ...created, status: "ready" })]));
     expect(await checkbox("new.pdf")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("checkbox", { name: "new.pdf" })).toBeChecked(), { timeout: 3000 });
+  });
+
+  it("asks only the new document after an upload, never the one selected before it", async () => {
+    const created = documentFixture({ id: "doc-new", name: "new.pdf", status: "uploaded", suggested_questions: [] });
+    const api = fakeApi(workspaceFixture({}, [documentA]), {
+      "POST /api/documents": () => jsonResponse(created, 201),
+      "POST /api/query": () => ndjsonResponse(answeredEvents()),
+    });
+    const { user, container } = start(api);
+    expect(await checkbox("a.pdf")).toBeChecked();
+
+    api.setWorkspace(workspaceFixture({}, [documentA, created]));
+    await user.upload(uploadInput(container), pdfFile());
+    expect(await screen.findByRole("heading", { name: "Waiting to index new.pdf" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "a.pdf" })).not.toBeChecked();
+    expect(screen.getByLabelText(QUESTION_INPUT)).toHaveAttribute("placeholder", "Available when a document is ready.");
+
+    api.setWorkspace(workspaceFixture({}, [documentA, documentFixture({ ...created, status: "ready" })]));
+    expect(await screen.findByRole("heading", { name: "Ask a question about new.pdf" }, { timeout: 3000 })).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(QUESTION_INPUT), "What is it?{Enter}");
+    await waitFor(() => expect(api.calls.some((call) => call.url === "/api/query")).toBe(true));
+    const query = api.calls.find((call) => call.url === "/api/query");
+    expect(query?.body).toEqual({ question: "What is it?", selected_document_ids: ["doc-new"] });
+  });
+
+  it("never falls back to the empty state between uploading and indexing", async () => {
+    const created = documentFixture({ id: "doc-new", name: "new.pdf", status: "indexing" });
+    const headings: (string | null | undefined)[] = [];
+    let workspaceLoads = 0;
+    const api = fakeApi(workspaceFixture({}, []), {
+      "POST /api/documents": () => jsonResponse(created, 201),
+    });
+    const fetchSpy = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      // The list refreshed after the upload arrives late, as it does over a network.
+      if (String(input) === "/api/workspace" && ++workspaceLoads > 1) await new Promise((done) => setTimeout(done, 50));
+      return api.fetch(input as never, init as never);
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    await screen.findByRole("heading", { name: "No documents yet" });
+    const observer = new MutationObserver(() => headings.push(container.querySelector("main h2")?.textContent));
+    observer.observe(container, { subtree: true, childList: true, characterData: true });
+
+    api.setWorkspace(workspaceFixture({}, [created]));
+    await user.upload(uploadInput(container), pdfFile());
+    await screen.findByRole("heading", { name: "Indexing new.pdf…" });
+    observer.disconnect();
+    expect(headings).toContain("Uploading new.pdf…");
+    expect(headings).not.toContain("No documents yet");
+  });
+
+  it("names the file in the main panel while it uploads", async () => {
+    const api = fakeApi(workspaceFixture({}, []), {
+      "POST /api/documents": () => new Promise<Response>(() => {}),
+    });
+    const { user, container } = start(api);
+    await screen.findByRole("heading", { name: "No documents yet" });
+    await user.upload(uploadInput(container), pdfFile("Deep_Learning.pdf"));
+    expect(await screen.findByRole("heading", { name: "Uploading Deep_Learning.pdf…" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "No documents yet" })).not.toBeInTheDocument();
+  });
+
+  it("shows why a new upload failed in the main panel, even with another document ready", async () => {
+    const failed = documentFixture({ id: "doc-new", name: "scan.pdf", status: "failed", error: "scan.pdf has no extractable text." });
+    const api = fakeApi(workspaceFixture({}, [documentA]), {
+      "POST /api/documents": () => jsonResponse(failed, 201),
+    });
+    const { user, container } = start(api);
+    await checkbox("a.pdf");
+    api.setWorkspace(workspaceFixture({}, [documentA, failed]));
+    await user.upload(uploadInput(container), pdfFile("scan.pdf"));
+    expect(await screen.findByRole("heading", { name: "scan.pdf couldn't be indexed" })).toBeInTheDocument();
+    expect(screen.getByLabelText(QUESTION_INPUT)).toHaveAttribute("placeholder", "Select a document to ask a question.");
   });
 });
 

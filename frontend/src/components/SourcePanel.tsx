@@ -51,7 +51,7 @@ function RetrievalDetails({ turn, pipeline }: { turn: Turn; pipeline: PipelineCo
           The number on each passage is its squared L2 distance from the question. Lower is closer. It measures
           similarity, so it can't show that a passage is correct.
         </p>
-        <p>Page numbers are PDF pages, which can differ from the numbers printed in the book.</p>
+        <p>Page numbers are PDF pages, which can differ from the numbers printed in the document.</p>
         {turn.retrievalMs !== null && <p>Search time: {turn.retrievalMs} ms.</p>}
       </div>
     </details>

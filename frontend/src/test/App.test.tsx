@@ -58,7 +58,7 @@ describe("App", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
     render(<App />);
 
-    expect(await screen.findByText("uvicorn api:app --port 8000")).toBeInTheDocument();
+    expect(await screen.findByText("uvicorn api:app --port 8000 --app-dir backend")).toBeInTheDocument();
   });
 
   it("shows question, sources and answer, and links a passage to its excerpt", async () => {

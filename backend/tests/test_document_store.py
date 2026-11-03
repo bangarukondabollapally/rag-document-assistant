@@ -13,7 +13,7 @@ import document_store
 import rag_core
 from document_store import DocumentBusy, DocumentNotFound, DocumentNotReady, DocumentStore, UploadRejected, safe_display_name
 from samples.make_sample import write_pdf
-from tests.support import CountingEmbeddings, KeywordEmbeddings, pdf_bytes, topic_pages
+from tests.support import SAMPLE_DOCUMENT, CountingEmbeddings, KeywordEmbeddings, pdf_bytes, topic_pages
 
 
 class StoreTestCase(unittest.TestCase):
@@ -430,7 +430,7 @@ class CommandLineSupportTests(StoreTestCase):
     def test_the_committed_sample_can_be_added_and_indexed(self):
         store = DocumentStore(self.root, embeddings=KeywordEmbeddings())
         store.load()
-        record = store.index_now(store.add_file(rag_core.SAMPLE_DOCUMENT).id)
+        record = store.index_now(store.add_file(SAMPLE_DOCUMENT).id)
         self.assertEqual(record.status, "ready")
         self.assertEqual(record.pages_total, 4)
         self.assertTrue(store.questions(record.id))

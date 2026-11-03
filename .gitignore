@@ -19,4 +19,5 @@ DocumentLoaders/
 !samples/*.pdf
 
 # Uploaded PDFs and their indexes.
+/backend/documents/
 /documents/

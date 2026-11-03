@@ -21,14 +21,16 @@ Upload PDFs, choose which ones to search, and ask questions. Answers come from a
 React + TypeScript         Documents | Conversation | Retrieved context
         │  REST, and newline-delimited JSON for streamed answers
         ▼
-FastAPI (api.py)           A thin HTTP layer
+FastAPI                    A thin HTTP layer
+(backend/api.py)
         │
         ▼
 Document registry          Uploads, status, and one background indexing worker
-(document_store.py)
+(backend/document_store.py)
         │
         ▼
-RAG pipeline (rag_core.py)
+RAG pipeline
+(backend/rag_core.py)
   Indexing:  PDF → content pages → chunks → embeddings → FAISS index saved per document
   Querying:  question → search selected indexes → merge → MMR → prompt → Groq → answer
 ```
@@ -38,7 +40,7 @@ RAG pipeline (rag_core.py)
 There's no database. Each document is a folder, ignored by git:
 
 ```text
-documents/<generated-id>/
+backend/documents/<generated-id>/
     original.pdf       The uploaded file, always stored under this name
     manifest.json      Filename, SHA-256, status, page and chunk counts, settings, any error
     index/             That document's FAISS index
@@ -65,7 +67,7 @@ It never parses a PDF, generates document embeddings or builds an index. If an i
 
 ### Retrieval
 
-The embedding model, chunk settings and MMR settings are fixed in `rag_core.py`, so results stay comparable:
+The embedding model, chunk settings and MMR settings are fixed in `backend/rag_core.py`, so results stay comparable:
 
 | Setting | Value |
 |---|---|
@@ -76,7 +78,7 @@ The embedding model, chunk settings and MMR settings are fixed in `rag_core.py`,
 | MMR λ | 0.7 |
 | LLM | `openai/gpt-oss-120b` on Groq |
 
-Each selected index returns its 20 nearest chunks. They're merged by distance, the closest 20 are kept, and MMR selects 6. With one document this gives exactly the same result as FAISS's own MMR search. If no document is selected, the API refuses the question rather than searching everything.
+Each selected index returns its 20 nearest chunks. They're merged by distance, the closest 20 are kept, and MMR selects 6. With one document this gives exactly the same result as FAISS's own MMR search. If no document is selected, the API refuses the question rather than searching everything. Uploading a document makes it the only one selected, so an earlier selection can't answer for it or get mixed in with it.
 
 Page selection works from each page's content, skipping blank pages, tables of contents, back-of-book indexes and copyright pages.
 
@@ -91,13 +93,13 @@ cd rag-document-assistant
 python -m venv .venv
 .venv\Scripts\activate          # Windows
 source .venv/bin/activate       # macOS or Linux
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 
 copy .env.example .env          # Windows
 cp .env.example .env            # macOS or Linux
 ```
 
-Add your key to `.env`, then start the frontend and API together:
+The virtual environment and `.env` stay in the project root. Add your key to `.env`, then start the frontend and API together:
 
 ```bash
 cd frontend
@@ -105,17 +107,22 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173. To try it straight away, upload `samples/rag-guide.pdf`, a short guide written for this project. The embedding model is downloaded the first time it's needed.
+Open http://localhost:5173 and upload a PDF. Once it shows as **Ready**, ask a question about it. The embedding model is downloaded the first time it's needed, so the first upload takes longer.
 
-`npm run dev` uses the API on port 8000 if one is already running. `npm run dev:web` starts only the frontend, and `uvicorn api:app --port 8000` starts only the API.
+The app starts with no documents and doesn't need any particular one. If you don't have a PDF to hand, `samples/rag-guide.pdf` is a short guide written for this project.
+
+`npm run dev` uses the API on port 8000 if one is already running. `npm run dev:web` starts only the frontend. To start only the API, run `uvicorn api:app --port 8000` from `backend/`, or `uvicorn api:app --port 8000 --app-dir backend` from the project root.
+
+For the Streamlit interface, run `streamlit run backend/app.py` from the project root. It has its own uploader, but no delete or reindex.
 
 ### Reindexing
 
 Use **Reindex** on a document in the sidebar, which rebuilds only that document. Documents can also be managed from the command line, with the API stopped, since a running API reads the registry once at startup:
 
 ```bash
+cd backend
 python document_store.py list
-python document_store.py add samples/rag-guide.pdf
+python document_store.py add ../samples/rag-guide.pdf
 python document_store.py reindex <id>
 python document_store.py delete <id>
 ```
@@ -126,16 +133,17 @@ python document_store.py delete <id>
 |---|---|---|
 | `GROQ_API_KEY` | Needed to generate answers | None |
 | `RAG_LLM_MODEL` | The Groq model | `openai/gpt-oss-120b` |
-| `RAG_DOCUMENTS_DIR` | Where PDFs and indexes are stored | `documents` |
+| `RAG_DOCUMENTS_DIR` | Where PDFs and indexes are stored | `backend/documents` |
 | `RAG_MAX_UPLOAD_MB` | The largest PDF accepted | `50` |
 
 ## Tests
 
 ```bash
+cd backend
 pip install -r requirements-dev.txt
 pytest
 
-cd frontend
+cd ../frontend
 npm test
 npm run typecheck
 npm run lint
@@ -175,13 +183,21 @@ This is a local, single-user portfolio project, not a production service.
 ## Project structure
 
 ```text
-api.py               HTTP layer
-document_store.py    Document registry, uploads, and the indexing worker
-rag_core.py          Page selection, chunking, FAISS, retrieval and generation
-app.py               A simple Streamlit interface over the same core
-frontend/            React and TypeScript workspace
-samples/             A small PDF that's safe to share, and the script that writes it
-tests/               Backend tests
+backend/
+    api.py               HTTP layer
+    document_store.py    Document registry, uploads, and the indexing worker
+    rag_core.py          Page selection, chunking, FAISS, retrieval and generation
+    app.py               A simple Streamlit interface over the same core
+    requirements.txt     Python dependencies, with requirements-dev.txt for the tests
+    pytest.ini           Test configuration
+    tests/               Backend tests
+    documents/           Uploaded PDFs and their indexes, ignored by git
+frontend/                React and TypeScript workspace
+samples/                 A small PDF that's safe to share, and the script that writes it
+assets/                  Images for this README
+.env.example             A template for .env, which stays in the project root
 ```
+
+`frontend/` builds without anything from `backend/`, and the API needs nothing from `frontend/`. Only the backend tests use `samples/`, so the app runs without it.
 
 Only share documents you have the right to share. Uploaded PDFs and generated indexes are ignored by git.

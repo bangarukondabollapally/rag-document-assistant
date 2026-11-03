@@ -16,11 +16,15 @@ export function EmptyState({ workspace, unreachable, ready, documents, onAsk }: 
   if (unreachable) {
     return (
       <div className={styles.empty}>
-        <ErrorState
-          title="Can't reach the API"
-          message="It can take a moment to start. If it isn't running, start it from the project root. This page reconnects automatically."
-          command="uvicorn api:app --port 8000"
-        />
+        {import.meta.env.DEV ? (
+          <ErrorState
+            title="Can't reach the API"
+            message="It can take a moment to start. If it isn't running, start it from the project root. This page reconnects automatically."
+            command="uvicorn api:app --port 8000 --app-dir backend"
+          />
+        ) : (
+          <ErrorState title="Can't reach the API" message="It can take a moment to start. This page reconnects automatically." />
+        )}
       </div>
     );
   }
@@ -35,6 +39,16 @@ export function EmptyState({ workspace, unreachable, ready, documents, onAsk }: 
 
   // The first response normally arrives immediately; the input shows "Connecting" meanwhile.
   if (!workspace) return null;
+
+  const [uploading] = documents.uploads;
+  if (uploading) {
+    return (
+      <div className={styles.empty} role="status">
+        <h2 className={styles.heading}>Uploading {uploading}…</h2>
+        <p className={styles.flow}>You can ask questions once it has been indexed.</p>
+      </div>
+    );
+  }
 
   if (workspace.documents.length === 0) {
     return (
@@ -53,17 +67,40 @@ export function EmptyState({ workspace, unreachable, ready, documents, onAsk }: 
     );
   }
 
-  const { selected } = documents;
-  if (selected.length === 0) {
-    const anyReady = workspace.documents.some((document) => document.status === "ready");
+  const { selected, blocking } = documents;
+  if (blocking?.status === "failed") {
     return (
       <div className={styles.empty}>
-        <h2 className={styles.heading}>{anyReady ? "Select a document" : "Your document isn't ready yet"}</h2>
-        <p className={styles.flow}>
-          {anyReady
-            ? "Choose one or more documents to search. Only the documents you select are used."
-            : "You can ask questions as soon as indexing finishes."}
-        </p>
+        <h2 className={styles.heading}>{blocking.name} couldn't be indexed</h2>
+        <p className={styles.flow}>{blocking.error ?? "Try indexing it again, or upload a different PDF."}</p>
+        <div className={styles.emptyAction}>
+          <UploadButton onUpload={(file) => void documents.upload(file)} />
+        </div>
+        {documents.error && (
+          <p className={styles.uploadError} role="alert">
+            {documents.error}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  if (blocking) {
+    return (
+      <div className={styles.empty} role="status">
+        <h2 className={styles.heading}>
+          {blocking.status === "uploaded" ? `Waiting to index ${blocking.name}` : `Indexing ${blocking.name}…`}
+        </h2>
+        <p className={styles.flow}>You can ask questions as soon as it's ready. A long PDF can take several minutes.</p>
+      </div>
+    );
+  }
+
+  if (selected.length === 0) {
+    return (
+      <div className={styles.empty}>
+        <h2 className={styles.heading}>Select a document</h2>
+        <p className={styles.flow}>Choose one or more documents to search. Only the documents you select are used.</p>
       </div>
     );
   }

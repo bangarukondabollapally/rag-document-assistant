@@ -11,7 +11,7 @@ from langchain_core.documents import Document
 import rag_core
 from rag_core import SearchableDocument
 from samples.make_sample import write_pdf
-from tests.support import CountingEmbeddings, KeywordEmbeddings, topic_pages
+from tests.support import SAMPLE_DOCUMENT, CountingEmbeddings, KeywordEmbeddings, topic_pages
 
 
 def make_embeddings():
@@ -134,10 +134,10 @@ class DocumentLoadingTests(unittest.TestCase):
 class SampleDocumentTests(unittest.TestCase):
     def test_committed_sample_keeps_its_exact_bytes_after_checkout(self):
         # Converted line endings would invalidate the offsets inside the PDF.
-        self.assertNotIn(b"\r\n", rag_core.SAMPLE_DOCUMENT.read_bytes())
+        self.assertNotIn(b"\r\n", SAMPLE_DOCUMENT.read_bytes())
 
     def test_committed_sample_is_a_usable_document(self):
-        pages = rag_core.load_document(rag_core.SAMPLE_DOCUMENT)
+        pages = rag_core.load_document(SAMPLE_DOCUMENT)
         kept, skipped = rag_core.select_content_pages(pages)
         self.assertEqual(len(kept), len(pages))
         self.assertEqual(skipped, {})

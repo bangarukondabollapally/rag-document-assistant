@@ -10,6 +10,8 @@ from langchain_core.embeddings import DeterministicFakeEmbedding, Embeddings
 
 from samples.make_sample import write_pdf
 
+SAMPLE_DOCUMENT = Path(__file__).resolve().parents[2] / "samples" / "rag-guide.pdf"
+
 KEYWORDS = ("alpha", "beta", "gamma", "delta")
 
 

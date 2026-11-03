@@ -9,7 +9,7 @@ const OFFLINE_POLL_MS = 2000;
 export interface WorkspaceResult {
   workspace: Workspace | null;
   unreachable: boolean;
-  refresh: () => void;
+  refresh: () => Promise<void>;
 }
 
 function nextPollDelay(workspace: Workspace): number | null {
@@ -21,7 +21,7 @@ function nextPollDelay(workspace: Workspace): number | null {
 /** Polls only while the answer can change: while loading, indexing, or unreachable. */
 export function useWorkspace(): WorkspaceResult {
   const [result, setResult] = useState<Omit<WorkspaceResult, "refresh">>({ workspace: null, unreachable: false });
-  const reload = useRef<() => void>(() => {});
+  const reload = useRef<() => Promise<void>>(() => Promise.resolve());
 
   useEffect(() => {
     const controller = new AbortController();
@@ -45,7 +45,7 @@ export function useWorkspace(): WorkspaceResult {
       }
     }
 
-    reload.current = () => void load();
+    reload.current = load;
     void load();
     return () => {
       controller.abort();

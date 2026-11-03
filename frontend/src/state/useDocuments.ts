@@ -10,6 +10,8 @@ export interface DocumentsState {
   /** Selected documents that are ready. Only these are ever sent with a question. */
   selected: DocumentSummary[];
   selectedIds: string[];
+  /** With nothing selected, the document that explains why: it's indexing or it failed. */
+  blocking: DocumentSummary | null;
   isChecked: (id: string) => boolean;
   toggle: (id: string) => void;
   uploads: string[];
@@ -41,7 +43,7 @@ function messageOf(error: unknown, fallback: string): string {
   return error instanceof ApiError ? error.message : fallback;
 }
 
-export function useDocuments(workspace: Workspace | null, refresh: () => void): DocumentsState {
+export function useDocuments(workspace: Workspace | null, refresh: () => Promise<void>): DocumentsState {
   // null means nothing has been chosen yet, so the first ready document is used.
   const [chosen, setChosen] = useState<string[] | null>(readStoredSelection);
   const [uploads, setUploads] = useState<string[]>([]);
@@ -53,6 +55,13 @@ export function useDocuments(workspace: Workspace | null, refresh: () => void): 
   const wanted = useMemo(() => chosen ?? ready.slice(0, 1).map((document) => document.id), [chosen, ready]);
   const selected = useMemo(() => ready.filter((document) => wanted.includes(document.id)), [ready, wanted]);
   const selectedIds = useMemo(() => selected.map((document) => document.id), [selected]);
+  const blocking = useMemo(() => {
+    if (selected.length > 0) return null;
+    const unavailable = documents.filter((document) => document.status !== "ready");
+    const wantedUnavailable = unavailable.filter((document) => wanted.includes(document.id));
+    const candidates = wantedUnavailable.length > 0 || ready.length > 0 ? wantedUnavailable : unavailable;
+    return candidates.find((document) => document.status !== "failed") ?? candidates[0] ?? null;
+  }, [documents, ready, selected, wanted]);
 
   const choose = useCallback((ids: string[]) => {
     setChosen(ids);
@@ -77,9 +86,11 @@ export function useDocuments(workspace: Workspace | null, refresh: () => void): 
       setUploads((current) => [...current, file.name]);
       try {
         const document = await uploadDocument(file);
-        // With nothing else selected, the new document is the obvious one to ask about.
-        if (selectedIds.length === 0) choose([document.id]);
-        refresh();
+        // Questions go to the document just uploaded, and only to it, so an earlier
+        // selection can't answer for it or get mixed in with it.
+        choose([document.id]);
+        // Awaited so the "Uploading" row stays until the list includes the new document.
+        await refresh();
       } catch (caught) {
         setError(messageOf(caught, `${file.name} couldn't be uploaded.`));
       } finally {
@@ -89,7 +100,7 @@ export function useDocuments(workspace: Workspace | null, refresh: () => void): 
         });
       }
     },
-    [choose, refresh, selectedIds, workspace],
+    [choose, refresh, workspace],
   );
 
   const runAction = useCallback(
@@ -102,7 +113,7 @@ export function useDocuments(workspace: Workspace | null, refresh: () => void): 
         setError(messageOf(caught, failure));
       } finally {
         setPending(({ [id]: _finished, ...rest }) => rest);
-        refresh();
+        void refresh();
       }
     },
     [refresh],
@@ -118,5 +129,5 @@ export function useDocuments(workspace: Workspace | null, refresh: () => void): 
     [runAction],
   );
 
-  return { selected, selectedIds, isChecked, toggle, uploads, pending, error, upload, remove, reindex };
+  return { selected, selectedIds, blocking, isChecked, toggle, uploads, pending, error, upload, remove, reindex };
 }
