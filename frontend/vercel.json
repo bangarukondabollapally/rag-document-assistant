@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://rag-document-assistant-api.onrender.com/api/:path*"
+      "destination": "https://rag-document-assistant-yv54.onrender.com/api/:path*"
     }
   ]
 }
