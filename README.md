@@ -177,6 +177,7 @@ This is a local, single-user portfolio project, not a production service.
 - **Text PDFs only:** scanned PDFs have no extractable text and fail with that reason. There's no OCR.
 - **No progress percentage:** indexing reports its state rather than an estimate, and a long build isn't resumable. If it's interrupted, the document reports `failed` and can be retried.
 - **One indexing job at a time:** further uploads wait in a queue.
+- **Storage is only as lasting as the host's disk:** documents are saved under `backend/documents/` by default. On a host without a persistent disk, such as Render's free tier, they're lost whenever the service restarts or redeploys, and it starts again with no documents.
 - **Saved indexes use pickle:** FAISS stores its text that way, and loading a pickle can run code. Only load indexes this application created.
 - **Rate limits:** Groq's free tier limits tokens per minute. The app reports this and offers a retry.
 

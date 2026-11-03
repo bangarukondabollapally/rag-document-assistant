@@ -205,6 +205,21 @@ describe("upload", () => {
     expect(headings).not.toContain("No documents yet");
   });
 
+  it("refreshes the list after a question, so documents lost in a server restart disappear", async () => {
+    const api = fakeApi(workspaceFixture({}, [documentA]), {
+      "POST /api/query": () => {
+        api.setWorkspace(workspaceFixture({}, []));
+        return jsonResponse({ code: "document_not_found", message: "That document no longer exists." }, 404);
+      },
+    });
+    const { user } = start(api);
+    await checkbox("a.pdf");
+    await user.type(screen.getByLabelText(QUESTION_INPUT), "What is it?{Enter}");
+    expect(await screen.findByText("No documents yet")).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "a.pdf" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText(QUESTION_INPUT)).toHaveAttribute("placeholder", "Upload a PDF to get started.");
+  });
+
   it("names the file in the main panel while it uploads", async () => {
     const api = fakeApi(workspaceFixture({}, []), {
       "POST /api/documents": () => new Promise<Response>(() => {}),

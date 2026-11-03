@@ -24,9 +24,11 @@ export function App() {
   const handleAsk = useCallback(
     (question: string) => {
       setFocus(null);
-      void ask(question, selectedIds);
+      // Refreshed afterwards, because the server may have restarted and lost documents
+      // while the list wasn't being polled.
+      void ask(question, selectedIds).then(refresh);
     },
-    [ask, selectedIds],
+    [ask, refresh, selectedIds],
   );
 
   const handleReset = useCallback(() => {
